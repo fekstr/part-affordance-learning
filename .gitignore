@@ -1,4 +1,5 @@
 data/
+data
 lightning_logs/
 .DS_Store
 PartNet/

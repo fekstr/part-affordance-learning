@@ -1,8 +1,10 @@
-from zipfile import ZipFile
 import pickle
+import os
 from tqdm import tqdm
+from zipfile import ZipFile
 
-archive = ZipFile('./data/PartNet/data_v0.zip')
+data_path = './data/PartNet/data_v0.zip'
+archive = ZipFile(data_path)
 
 with open('./data/object_ids.pkl', 'rb') as f:
     obj_id_map = pickle.load(f)
@@ -10,10 +12,10 @@ with open('./data/object_ids.pkl', 'rb') as f:
 all_ids = []
 for ids in obj_id_map.values():
     all_ids += ids
-
 allowed_prefixes = tuple([f'data_v0/{id}/' for id in all_ids])
-exclusions = ['.html', 'parts_render']
 
 for name in tqdm(archive.namelist()):
-    if name.startswith(allowed_prefixes) and not any(exclusion in name for exclusion in exclusions):
-        archive.extract(name, './data/PartNet/selected_obj')
+    if name.startswith(allowed_prefixes):
+        archive.extract(name, './data/PartNet')
+
+os.rename('./data/PartNet/data_v0', './data/PartNet/objects')

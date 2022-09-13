@@ -20,6 +20,7 @@ gt = gt.reset_index(drop=True)
 gt = gt.loc[:, gt.columns != 'has_affordance']
 gt.to_pickle('./data/gt.pkl')
 
+
 # Extract affordance labels to use in the study
 occurrences = gt.groupby(['affordance']).nunique()
 occurrences = occurrences[occurrences['object'] > 1] # Only use affordances that exist for at least 2 objects

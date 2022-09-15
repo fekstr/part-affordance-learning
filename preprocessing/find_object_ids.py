@@ -85,6 +85,7 @@ with open('./data/object_ids.pkl', 'wb') as f:
     pickle.dump(dict(obj_id_map), f)
 
 # Load as follows
-# with open('./data/object_ids.pkl', 'rb') as f:
-#     obj_id_map = pickle.load(f)
+with open('./data/object_ids.pkl', 'rb') as f:
+    obj_id_map = pickle.load(f)
+
 

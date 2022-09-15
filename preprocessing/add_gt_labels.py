@@ -4,6 +4,8 @@ from collections import defaultdict
 import json
 from tqdm import tqdm
 
+from preprocessing.utils import get_obj_name
+
 gt = pd.read_pickle('./data/gt.pkl')
 gt = gt.drop(columns='body_part')
 gt = gt.drop_duplicates().reset_index(drop=True)
@@ -48,26 +50,11 @@ def get_objs(part):
             objs += get_objs(subpart)
     return objs
 
-def get_obj_names(objs):
-    names = []
-    for obj in objs:
-        names.append(obj['name'])
-        if 'children' in obj:
-            names += get_obj_names(obj['children'])
-    return names
-
-
-def get_obj_name(obj):
-    names = get_obj_names([obj])
-    for name in names:
-        if name in object_part_affordance_map.keys():
-            return name
-
 for object_id in tqdm(object_ids):
     with open(f'{objects_path}/{object_id}/result.json') as f:
         result = json.load(f)
     obj = result[0]
-    obj_name = get_obj_name(obj)
+    obj_name = get_obj_name(obj, object_part_affordance_map.keys())
     part_affordance_map = object_part_affordance_map[obj_name]
     label_children(obj['children'], part_affordance_map)
     obj['labeled_parts'] = lift_labeled_parts(obj['children'])

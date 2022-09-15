@@ -18,11 +18,11 @@ gt = gt[:-3]
 gt = gt[gt['has_affordance'] == 't'] # Only use true affordances
 gt = gt.reset_index(drop=True)
 gt = gt.loc[:, gt.columns != 'has_affordance']
-gt.to_pickle('./data/gt.pkl')
 
 # Delete object classes that do not exist in PartNet v0
 classes_to_delete = ['couch', 'cup', 'handbag', 'suitcase']
 gt = gt[~gt['object'].isin(classes_to_delete)]
+gt.to_pickle('./data/gt.pkl')
 
 # Extract affordance labels to use in the study
 occurrences = gt.groupby(['affordance']).nunique()

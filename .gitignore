@@ -3,3 +3,4 @@ data
 lightning_logs/
 .DS_Store
 PartNet/
+__pycache__/

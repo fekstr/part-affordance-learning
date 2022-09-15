@@ -78,6 +78,8 @@ summary = { obj: len(ids) for obj, ids in obj_id_map.items() }
 summary
 sum([i for i in summary.values()])
 
+objects.difference(names)
+
 # Save the extracted IDs
 with open('./data/object_ids.pkl', 'wb') as f:
     pickle.dump(dict(obj_id_map), f)

@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 from tqdm import tqdm
 
-objects_path = './data/PartNet/objects'
+objects_path = './data/PartNet/selected_objects'
 object_ids = os.listdir(objects_path)
 
 object_id = object_ids[1]
@@ -51,7 +51,7 @@ for object_id in tqdm(object_ids):
 
     obj = result[0]
     obj_objs = get_objs(obj['children'])
-    full_obj_path = merge_objs(obj_objs, obj['name'], objs_path)
+    full_obj_path = merge_objs(obj_objs, 'full', objs_path)
 
     # Merge part obj files into full parts
     with open(f'{object_path}/result_labeled.json') as f:

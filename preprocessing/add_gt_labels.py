@@ -19,7 +19,7 @@ for key in object_part_affordance_map.keys():
 object_part_affordance_map = dict(object_part_affordance_map)
 
 # Iterate through part hierarchy adding labels to matching parts
-objects_path = './data/PartNet/objects'
+objects_path = './data/PartNet/selected_objects'
 object_ids = os.listdir(objects_path)
 
 def label_children(children, part_affordance_map):
@@ -48,12 +48,27 @@ def get_objs(part):
             objs += get_objs(subpart)
     return objs
 
+def get_obj_names(objs):
+    names = []
+    for obj in objs:
+        names.append(obj['name'])
+        if 'children' in obj:
+            names += get_obj_names(obj['children'])
+    return names
+
+
+def get_obj_name(obj):
+    names = get_obj_names([obj])
+    for name in names:
+        if name in object_part_affordance_map.keys():
+            return name
 
 for object_id in tqdm(object_ids):
     with open(f'{objects_path}/{object_id}/result.json') as f:
         result = json.load(f)
     obj = result[0]
-    part_affordance_map = object_part_affordance_map[obj['name']]
+    obj_name = get_obj_name(obj)
+    part_affordance_map = object_part_affordance_map[obj_name]
     label_children(obj['children'], part_affordance_map)
     obj['labeled_parts'] = lift_labeled_parts(obj['children'])
     for part in obj['labeled_parts']:

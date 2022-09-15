@@ -20,6 +20,9 @@ gt = gt.reset_index(drop=True)
 gt = gt.loc[:, gt.columns != 'has_affordance']
 gt.to_pickle('./data/gt.pkl')
 
+# Delete object classes that do not exist in PartNet v0
+classes_to_delete = ['couch', 'cup', 'handbag', 'suitcase']
+gt = gt[~gt['object'].isin(classes_to_delete)]
 
 # Extract affordance labels to use in the study
 occurrences = gt.groupby(['affordance']).nunique()
@@ -42,29 +45,33 @@ for pair in pairs:
 
 affordance_object_counts = {affordance: len(objects) for affordance, objects in affordance_object_map.items()}
 
-objects = set(gt['object'].unique())
 # Randomly select half of the objects, with the constraint that at least one object
 # from every affordance must not be selected.
-object_count = len(objects)
-train_objects = set()
-while len(train_objects) < object_count // 2 + 1 and len(objects) > 0:
-    obj = random.choice(tuple(objects))
-    train_objects.add(obj)
-    objects.remove(obj)
-    for affordance in affordance_object_map:
-        affordance_object_map[affordance].discard(obj)
-        if len(affordance_object_map[affordance]) == 1:
-            objects.discard(list(affordance_object_map[affordance])[0])
+train_ok = False
+test_ok = False
+while not (train_ok and test_ok):
+    objects = set(gt['object'].unique())
+    object_count = len(objects)
+    train_objects = set()
+    while len(train_objects) < object_count // 2 + 1 and len(objects) > 0:
+        obj = random.choice(tuple(objects))
+        train_objects.add(obj)
+        objects.remove(obj)
+        for affordance in affordance_object_map:
+            affordance_object_map[affordance].discard(obj)
+            if len(affordance_object_map[affordance]) == 1:
+                objects.discard(list(affordance_object_map[affordance])[0])
 
-objects = set(gt['object'].unique())
-test_objects = objects.difference(train_objects)
+    objects = set(gt['object'].unique())
+    test_objects = objects.difference(train_objects)
 
-# Sanity check that all affordances are represented in train and test
-gt_train = gt[gt['object'].isin(train_objects)]
-gt_test = gt[gt['object'].isin(test_objects)]
-all_affordances = set(gt_train['affordance']).union(set(gt_test['affordance']))
-all_affordances == set(gt_train['affordance'])
-all_affordances == set(gt_test['affordance'])
+    # Sanity check that all affordances are represented in train and test
+    gt_train = gt[gt['object'].isin(train_objects)]
+    gt_test = gt[gt['object'].isin(test_objects)]
+    all_affordances = set(gt_train['affordance']).union(set(gt_test['affordance']))
+    train_ok = all_affordances == set(gt_train['affordance'])
+    test_ok = all_affordances == set(gt_test['affordance'])
+
 
 # Save the split
 with open('./data/train_objects.txt', 'w') as f:

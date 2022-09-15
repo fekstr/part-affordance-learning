@@ -1,6 +1,11 @@
 import os
-from torch import optim, nn, utils, Tensor
+import torch
 import pytorch_lightning as pl
+
+os.environ['CUDA_VISIBLE_DEVICES'] = ''
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
+torch.set_num_threads(1)
 
 class Baseline(pl.LightningModule):
     def __init__(self, pointnet):

@@ -1,8 +1,16 @@
 import os
+import torch
 from torch import optim, nn, utils, Tensor
 from torchvision.datasets import MNIST
 from torchvision.transforms import ToTensor
 import pytorch_lightning as pl
+
+os.environ['CUDA_VISIBLE_DEVICES'] = ''
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
+torch.set_num_threads(1)
+
+[torch.cuda.device(i) for i in range(torch.cuda.device_count())]
 
 # define any number of nn.Modules (or use your current ones)
 encoder = nn.Sequential(nn.Linear(28 * 28, 64), nn.ReLU(), nn.Linear(64, 3))
@@ -40,5 +48,5 @@ dataset = MNIST(os.getcwd(), download=True, transform=ToTensor())
 train_loader = utils.data.DataLoader(dataset)
 
 # train the model (hint: here are some helpful Trainer arguments for rapid idea iteration)
-trainer = pl.Trainer(accelerator='mps', devices=1, limit_train_batches=100, max_epochs=1)
+trainer = pl.Trainer(devices=1, limit_train_batches=100, max_epochs=100)
 trainer.fit(model=autoencoder, train_dataloaders=train_loader)

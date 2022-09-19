@@ -5,6 +5,8 @@ from torch.utils.data import Dataset
 from pyntcloud import PyntCloud
 from tqdm import tqdm
 from pathlib import Path
+import numpy as np
+from preprocessing.utils import load_split
 
 
 def create_pc(obj_path: str, dest_pc_path:str, num_points: int):
@@ -27,8 +29,6 @@ def create_pc(obj_path: str, dest_pc_path:str, num_points: int):
         for point in pc.to_numpy():
             point = [str(c) for c in point]
             f.write(' '.join(point) + '\n')
-
-
 
 def get_metas(objects_path, num_points):
     object_ids = os.listdir(objects_path)
@@ -58,6 +58,15 @@ def get_metas(objects_path, num_points):
     
     return object_metas, part_metas
 
+def get_affordance_vector(affordances: list, affordance_index_map: dict):
+    affordance_vector = np.zeros(len(affordance_index_map))
+    for affordance in affordances:
+        try:
+            affordance_vector[affordance_index_map[affordance]] = 1
+        except KeyError:
+            continue
+    return affordance_vector
+
 
 class PartDataset(Dataset):
     def __init__(self, objects_path: str, num_points: int):
@@ -72,6 +81,12 @@ class PartDataset(Dataset):
             for meta in tqdm(missing_metas):
                 create_pc(meta['obj_path'], meta['pc_path'], num_points)
 
+        # Create map for creating affordance tensors
+        _, _, affordances = load_split()
+        self.affordance_index_map = { 
+            aff: idx for idx, aff in enumerate(sorted(affordances))
+        }
+
 
     def __len__(self):
         return len(self.part_metas)
@@ -81,16 +96,17 @@ class PartDataset(Dataset):
         object_pc = object_pc.points.to_numpy()
         part_pc = PyntCloud.from_file(self.part_metas[idx]['pc_path'])
         part_pc = part_pc.points.to_numpy()
+        affordance_vector = get_affordance_vector(
+            self.part_metas[idx]['affordances'],
+            self.affordance_index_map
+        )
         sample = {
             'object_point_cloud': torch.from_numpy(object_pc),
             'part_point_cloud': torch.from_numpy(part_pc),
-            'affordances': None
+            'affordances': torch.from_numpy(affordance_vector)
         }
         return sample
 
 
 if __name__ == '__main__':
     dataset = PartDataset('./data/PartNet/objects_small', 1000)
-
-    # TODO:
-    # [ ] Create affordance tensors (self.part_metas contains affordance labels)

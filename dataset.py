@@ -86,7 +86,7 @@ class PartDataset(Dataset):
         self.affordance_index_map = { 
             aff: idx for idx, aff in enumerate(sorted(affordances))
         }
-
+        self.num_class = len(self.affordance_index_map)
 
     def __len__(self):
         return len(self.part_metas)
@@ -101,12 +101,12 @@ class PartDataset(Dataset):
             self.affordance_index_map
         )
         sample = {
-            'object_point_cloud': torch.from_numpy(object_pc),
-            'part_point_cloud': torch.from_numpy(part_pc),
+            'object_point_cloud': torch.from_numpy(object_pc).T,
+            'part_point_cloud': torch.from_numpy(part_pc).T,
             'affordances': torch.from_numpy(affordance_vector)
         }
         return sample
 
 
 if __name__ == '__main__':
-    dataset = PartDataset('./data/PartNet/objects_small', 1000)
+    dataset = PartDataset('./data/PartNet/objects_small', 1024)

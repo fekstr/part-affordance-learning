@@ -1,8 +1,10 @@
 import os
 import torch
 import torch.nn.functional as F
+from torch.utils.data import DataLoader
 import pytorch_lightning as pl
 from dataset import PartDataset
+from pointnet2.backbone import PointNet2
 
 os.environ['CUDA_VISIBLE_DEVICES'] = ''
 os.environ['OMP_NUM_THREADS'] = '1'
@@ -15,12 +17,11 @@ class Baseline(pl.LightningModule):
         self.backbone = backbone
 
     def training_step(self, batch, batch_idx):
-        # x, y = batch
-        # x = x.view(x.size(0), -1)
-        # z = self.encoder(x)
-        # x_hat = self.decoder(z)
-        # loss = F.mse_loss(x_hat, x)
-        loss = F.nll_loss(pred, target)
+        obj_pc = batch['object_point_cloud']
+        part_pc = batch['part_point_cloud']
+        target = batch['affordances']
+        pred, _ = self.backbone(part_pc)
+        loss = F.cross_entropy(pred, target)
         return loss
 
     def configure_optimizers(self):
@@ -29,4 +30,10 @@ class Baseline(pl.LightningModule):
 
 
 if __name__ == '__main__':
-    dataset = PartDataset('./data/PartNet/objects_small', 1000)
+    dataset = PartDataset('./data/PartNet/objects_small', 1024)
+    train_loader = DataLoader(dataset, batch_size=2)
+
+    model = Baseline(PointNet2(dataset.num_class, normal_channel=False))
+
+    trainer = pl.Trainer()
+    trainer.fit(model=model, train_dataloaders=train_loader)

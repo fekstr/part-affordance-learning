@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 from tqdm import tqdm
 
+
 def merge_objs(obj_names, part_name, objs_path, path_only=False):
     merged_path = f'{objs_path}/merged'
     Path(merged_path).mkdir(parents=True, exist_ok=True)
@@ -31,6 +32,7 @@ def merge_objs(obj_names, part_name, objs_path, path_only=False):
         f.writelines(all_vertices + all_faces)
     return obj_path
 
+
 # Merge all obj files into full object
 def get_objs(parts):
     objs = []
@@ -41,17 +43,16 @@ def get_objs(parts):
             objs += get_objs(part['children'])
     return objs
 
+
 if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--src')
     parser.add_argument('--id')
-    parser.add_argument(
-        '--path-only',
-        action='store_true',
-        help='Update paths without merging objs'
-    )
+    parser.add_argument('--path-only',
+                        action='store_true',
+                        help='Update paths without merging objs')
     args = parser.parse_args()
 
     objects_path = args.src
@@ -74,7 +75,8 @@ if __name__ == '__main__':
         obj_labeled = result_labeled[0]
         parts = obj_labeled['labeled_parts']
         for part in parts:
-            obj_path = merge_objs(part['objs'], part['name'], objs_path, args.path_only)
+            obj_path = merge_objs(part['objs'], part['name'], objs_path,
+                                  args.path_only)
             part['obj_path'] = obj_path
         obj_labeled['obj_path'] = full_obj_path
 

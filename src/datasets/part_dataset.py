@@ -6,7 +6,7 @@ from pyntcloud import PyntCloud
 from tqdm import tqdm
 from pathlib import Path
 import numpy as np
-from preprocessing.utils import load_split
+from scripts.preprocessing.utils import load_split
 
 
 def create_pc(obj_path: str, dest_pc_path:str, num_points: int):

@@ -1,9 +1,21 @@
-data/
+# Data
 data
-lightning_logs/
+
+# Mac
 .DS_Store
-PartNet/
-__pycache__/
+
+# VSCode
 .vscode/
+
+# Cache
+__pycache__/
 .mypy_cache/
+
+# Environment
+.env
+
+# Logs
+lightning_logs/
+comet_logs/
 nohup.out
+checkpoints/

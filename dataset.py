@@ -45,11 +45,13 @@ def get_metas(objects_path, num_points):
 
         full_pc_path = os.path.join(pc_path, f'full_{num_points}.ply')
         object_metas.append({
+            'obj_id': id,
             'obj_path': obj['obj_path'],
             'pc_path': full_pc_path,
         })
         for part in parts:
             part_metas.append({
+                'obj_id': id,
                 'obj_path': part['obj_path'],
                 'pc_path': os.path.join(pc_path, f'{part["name"]}_{num_points}.ply'),
                 'full_pc_path': full_pc_path,
@@ -79,7 +81,11 @@ class PartDataset(Dataset):
         if len(missing_metas) > 0:
             print(f'Creating {len(missing_metas)} new point clouds...')
             for meta in tqdm(missing_metas):
-                create_pc(meta['obj_path'], meta['pc_path'], num_points)
+                try:
+                    create_pc(meta['obj_path'], meta['pc_path'], num_points)
+                except:
+                    with open('./failed.log', 'a') as f:
+                        f.write(meta['obj_id'] + '\n')
 
         # Create map for creating affordance tensors
         _, _, affordances = load_split()

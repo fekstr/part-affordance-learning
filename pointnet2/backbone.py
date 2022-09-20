@@ -1,5 +1,6 @@
 # From https://github.com/yanx27/Pointnet_Pointnet2_pytorch
 
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from pointnet2.pointnet2_utils import PointNetSetAbstractionMsg, PointNetSetAbstraction
@@ -35,7 +36,7 @@ class PointNet2(nn.Module):
         x = self.drop1(F.relu(self.bn1(self.fc1(x))))
         x = self.drop2(F.relu(self.bn2(self.fc2(x))))
         x = self.fc3(x)
-        x = F.sigmoid(x)
+        x = torch.sigmoid(x)
 
         return x,l3_points
 

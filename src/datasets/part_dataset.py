@@ -9,18 +9,14 @@ import numpy as np
 from scripts.preprocessing.utils import load_split
 
 
-def create_pc(obj_path: str, dest_pc_path:str, num_points: int):
+def create_pc(obj_path: str, dest_pc_path: str, num_points: int):
     obj = PyntCloud.from_file(obj_path)
     pc = obj.get_sample('mesh_random', n=num_points)
     pc_dir_path = os.path.dirname(dest_pc_path)
     Path(pc_dir_path).mkdir(parents=True, exist_ok=True)
     header = [
-        'ply\n',
-        'format ascii 1.0\n',
-        'element vertex 1000\n',
-        'property float x\n',
-        'property float y\n',
-        'property float z\n',
+        'ply\n', 'format ascii 1.0\n', 'element vertex 1000\n',
+        'property float x\n', 'property float y\n', 'property float z\n',
         'end_header\n'
     ]
     with open(dest_pc_path, 'w') as f:
@@ -30,13 +26,15 @@ def create_pc(obj_path: str, dest_pc_path:str, num_points: int):
             point = [str(c) for c in point]
             f.write(' '.join(point) + '\n')
 
+
 def get_metas(objects_path, num_points):
     object_ids = os.listdir(objects_path)
 
     part_metas = []
     object_metas = []
     for id in object_ids:
-        result_labeled_path = os.path.join(objects_path, id, 'result_labeled.json')
+        result_labeled_path = os.path.join(objects_path, id,
+                                           'result_labeled.json')
         pc_path = os.path.join(objects_path, id, 'point_clouds')
         with open(result_labeled_path) as f:
             result_labeled = json.load(f)
@@ -51,14 +49,20 @@ def get_metas(objects_path, num_points):
         })
         for part in parts:
             part_metas.append({
-                'obj_id': id,
-                'obj_path': part['obj_path'],
-                'pc_path': os.path.join(pc_path, f'{part["name"]}_{num_points}.ply'),
-                'full_pc_path': full_pc_path,
-                'affordances': part['affordances']
+                'obj_id':
+                id,
+                'obj_path':
+                part['obj_path'],
+                'pc_path':
+                os.path.join(pc_path, f'{part["name"]}_{num_points}.ply'),
+                'full_pc_path':
+                full_pc_path,
+                'affordances':
+                part['affordances']
             })
-    
+
     return object_metas, part_metas
+
 
 def get_affordance_vector(affordances: list, affordance_index_map: dict):
     affordance_vector = np.zeros(len(affordance_index_map))
@@ -77,7 +81,9 @@ class PartDataset(Dataset):
 
         # Create any missing point clouds
         metas = object_metas + self.part_metas
-        missing_metas = [meta for meta in metas if not os.path.isfile(meta['pc_path'])]
+        missing_metas = [
+            meta for meta in metas if not os.path.isfile(meta['pc_path'])
+        ]
         if len(missing_metas) > 0:
             print(f'Creating {len(missing_metas)} new point clouds...')
             for meta in tqdm(missing_metas):
@@ -89,8 +95,9 @@ class PartDataset(Dataset):
 
         # Create map for creating affordance tensors
         _, _, affordances = load_split()
-        self.affordance_index_map = { 
-            aff: idx for idx, aff in enumerate(sorted(affordances))
+        self.affordance_index_map = {
+            aff: idx
+            for idx, aff in enumerate(sorted(affordances))
         }
         self.num_class = len(self.affordance_index_map)
 
@@ -103,15 +110,11 @@ class PartDataset(Dataset):
         part_pc = PyntCloud.from_file(self.part_metas[idx]['pc_path'])
         part_pc = part_pc.points.to_numpy()
         affordance_vector = get_affordance_vector(
-            self.part_metas[idx]['affordances'],
-            self.affordance_index_map
-        )
-        sample = {
-            'object_point_cloud': torch.from_numpy(object_pc).T,
-            'part_point_cloud': torch.from_numpy(part_pc).T,
-            'affordances': torch.from_numpy(affordance_vector)
-        }
-        return sample
+            self.part_metas[idx]['affordances'], self.affordance_index_map)
+        object_point_cloud = torch.from_numpy(object_pc).T
+        part_point_cloud = torch.from_numpy(part_pc).T
+        affordances = torch.from_numpy(affordance_vector)
+        return object_point_cloud, part_point_cloud, affordances
 
 
 if __name__ == '__main__':

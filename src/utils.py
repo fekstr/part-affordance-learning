@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 from src.datasets.part_dataset import PartDataset
 
 
-def get_dataloader(dataset: Literal['train', 'test'],
+def get_dataloader(dataset: Literal['train', 'valid', 'test'],
                    small: bool,
                    batch_size: int,
                    pc_size=1024):

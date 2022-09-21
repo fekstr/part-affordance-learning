@@ -1,6 +1,7 @@
 import os
 import pickle
 from pathlib import Path
+import random
 from tqdm import tqdm
 from preprocessing.utils import load_split
 
@@ -15,7 +16,7 @@ data_path = './data/PartNet/data_v0'
 selected_path = './data/PartNet/selected_objects'
 
 dirs = tuple(os.listdir(data_path))
-Path(selected_path).mkdir(parents=True, exist_ok=True) 
+Path(selected_path).mkdir(parents=True, exist_ok=True)
 for id in tqdm(all_ids):
     if id in dirs:
         os.rename(f'{data_path}/{id}', f'{selected_path}/{id}')
@@ -36,17 +37,26 @@ for obj, ids in obj_id_map.items():
     else:
         raise Exception('Unknown object', obj)
 
-selected_dirs = tuple(os.listdir(selected_path))
 
 def move_ids(src, dest, ids):
-    Path(dest).mkdir(parents=True, exist_ok=True) 
+    Path(dest).mkdir(parents=True, exist_ok=True)
     for id in tqdm(ids):
-        if id in selected_dirs:
-            os.rename(
-                os.path.join(selected_path, id),
-                os.path.join(dest, id)
-            )
+        if id in tuple(os.listdir(src)):
+            os.rename(os.path.join(src, id), os.path.join(dest, id))
 
 
 move_ids(selected_path, os.path.join(selected_path, 'train'), train_ids)
 move_ids(selected_path, os.path.join(selected_path, 'test'), test_ids)
+
+# Create stratified validation set
+train_obj_id_map = {
+    obj: ids
+    for obj, ids in obj_id_map.items() if obj in train_objects
+}
+
+valid_ids = []
+for ids in train_obj_id_map.values():
+    valid_ids += random.sample(ids, int(0.1 * len(ids)))
+
+move_ids(os.path.join(selected_path, 'train'),
+         os.path.join(selected_path, 'valid'), valid_ids)

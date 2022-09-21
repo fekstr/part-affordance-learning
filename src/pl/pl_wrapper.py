@@ -17,6 +17,17 @@ class PLWrapper(pl.LightningModule):
         pred, _ = self.model(obj_pc, part_pc)
         loss = F.cross_entropy(pred, target)
         self.log('train_loss', loss)
+        self.logger.log_metrics({'train/loss': loss}, step=self.current_epoch)
+        return loss
+
+    def validation_step(self, batch, batch_idx):
+        obj_pc = batch['object_point_cloud']
+        part_pc = batch['part_point_cloud']
+        target = batch['affordances']
+        pred, _ = self.model(obj_pc, part_pc)
+        loss = F.cross_entropy(pred, target)
+        self.log('valid_loss', loss)
+        self.logger.log_metrics({'valid/loss': loss}, step=self.current_epoch)
         return loss
 
     def test_step(self, batch, batch_idx):

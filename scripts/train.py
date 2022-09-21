@@ -32,6 +32,7 @@ def init_experiment(resume_id, disable_logging=False):
 
 def main(args):
     set_seeds(1)
+    torch.set_num_threads(1)
 
     if args.resume_id:
         ckpt_path = os.path.join('checkpoints', args.resume_id, 'last.ckpt')
@@ -40,28 +41,31 @@ def main(args):
 
     experiment, comet_logger = init_experiment(disable_logging=args.no_logging,
                                                resume_id=args.resume_id)
-    torch.set_num_threads(1)
 
     model = PLWrapper(BaselineModel(), learning_rate=1e-3)
 
     train_dataloader = get_dataloader('train',
-                                      small=True,
-                                      batch_size=4,
+                                      small=args.dev,
+                                      batch_size=8,
+                                      pc_size=1024)
+    valid_dataloader = get_dataloader('valid',
+                                      small=args.dev,
+                                      batch_size=2,
                                       pc_size=1024)
 
     checkpoint_cb = ModelCheckpoint(dirpath=os.path.join(
         'checkpoints', experiment.get_key()),
                                     save_top_k=3,
-                                    monitor='train_loss',
+                                    monitor='valid_loss',
                                     save_last=True)
 
     trainer = pl.Trainer(
         accelerator='gpu' if torch.cuda.device_count() == 1 else None,
         logger=[comet_logger],
-        callbacks=[checkpoint_cb],
+        callbacks=None if args.no_checkpoints else [checkpoint_cb],
         max_epochs=10)
 
-    trainer.fit(model, train_dataloader, ckpt_path=ckpt_path)
+    trainer.fit(model, train_dataloader, valid_dataloader, ckpt_path=ckpt_path)
 
 
 if __name__ == '__main__':
@@ -70,15 +74,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--resume-id')
     parser.add_argument('--no-logging', action='store_true', default=False)
+    parser.add_argument('--no-checkpoints', action='store_true', default=False)
+    parser.add_argument('--dev', action='store_true', default=False)
 
     try:
         args = parser.parse_args()
     except SystemExit:
-        args = parser.parse_args(['--resume-id', None])
+        args = parser.parse_args(['--resume-id', None, '--dev'])
 
     load_dotenv()
     main(args)
-
-# TODO:
-# [ ] Check that resuming experiments works on Comet (online)
-# [ ] Make sure everything logs to Comet

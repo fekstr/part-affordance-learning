@@ -10,16 +10,24 @@ from torch.utils.data import DataLoader
 from src.datasets.part_dataset import PartDataset
 
 
-def get_dataloader(dataset: Literal['train', 'valid', 'test'],
-                   small: bool,
-                   batch_size: int,
-                   pc_size=1024):
-    data_path = os.path.join(
-        'data', 'PartNet',
-        'selected_objects' if not small else 'objects_small', dataset)
-    dataset = PartDataset(data_path, pc_size)
-    loader = DataLoader(dataset, batch_size=batch_size)
-    return loader
+def get_dataloaders(Dataset: PartDataset,
+                    small: bool,
+                    batch_size: int,
+                    pc_size=1024):
+    dir = 'objects_small' if small else 'selected_objects'
+    data_path = os.path.join('data', 'PartNet', dir)
+    dataset = Dataset(data_path, pc_size)
+    train_sampler, valid_sampler, test_sampler = dataset.create_split()
+    train_loader = DataLoader(dataset,
+                              batch_size=batch_size,
+                              sampler=train_sampler)
+    valid_loader = DataLoader(dataset,
+                              batch_size=batch_size,
+                              sampler=valid_sampler)
+    test_loader = DataLoader(dataset,
+                             batch_size=batch_size,
+                             sampler=test_sampler)
+    return train_loader, valid_loader, test_loader
 
 
 def set_seeds(seed):

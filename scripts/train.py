@@ -6,10 +6,11 @@ import torch
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import CometLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
+from src.datasets.chair_dataset import ChairDataset
 
 from src.pl.pl_wrapper import PLWrapper
 from src.models.baseline import BaselineModel
-from src.utils import get_dataloader, set_seeds
+from src.utils import get_dataloaders, set_seeds
 
 
 def init_experiment(resume_id, disable_logging=False, dev=False):
@@ -45,16 +46,12 @@ def main(args):
                                                resume_id=args.resume_id,
                                                dev=args.dev)
 
-    model = PLWrapper(BaselineModel(), learning_rate=1e-3)
+    model = PLWrapper(BaselineModel(num_classes=1), learning_rate=1e-3)
 
-    train_dataloader = get_dataloader('train',
-                                      small=args.dev,
-                                      batch_size=16,
-                                      pc_size=1024)
-    valid_dataloader = get_dataloader('valid',
-                                      small=args.dev,
-                                      batch_size=8,
-                                      pc_size=1024)
+    train_dataloader, valid_dataloader, _ = get_dataloaders(ChairDataset,
+                                                            small=args.dev,
+                                                            batch_size=16,
+                                                            pc_size=1024)
 
     checkpoint_cb = ModelCheckpoint(dirpath=os.path.join(
         'checkpoints', experiment.get_key()),
@@ -67,7 +64,7 @@ def main(args):
         logger=[comet_logger],
         callbacks=None if args.no_checkpoints else [checkpoint_cb],
         log_every_n_steps=1 if args.dev else 50,
-        max_epochs=10)
+        max_epochs=2 if args.dev else 50)
 
     trainer.fit(model, train_dataloader, valid_dataloader, ckpt_path=ckpt_path)
 

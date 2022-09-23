@@ -1,11 +1,14 @@
+from typing import Tuple
 import os
 import json
 import torch
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, SubsetRandomSampler
 from pyntcloud import PyntCloud
 from tqdm import tqdm
 from pathlib import Path
 import numpy as np
+from sklearn.model_selection import train_test_split
+
 from scripts.preprocessing.utils import load_split
 
 
@@ -27,9 +30,7 @@ def create_pc(obj_path: str, dest_pc_path: str, num_points: int):
             f.write(' '.join(point) + '\n')
 
 
-def get_metas(objects_path, num_points):
-    object_ids = os.listdir(objects_path)
-
+def get_metas(objects_path, object_ids, num_points):
     part_metas = []
     object_metas = []
     for id in object_ids:
@@ -49,6 +50,8 @@ def get_metas(objects_path, num_points):
         })
         for part in parts:
             part_metas.append({
+                'part_name':
+                part['name'],
                 'obj_id':
                 id,
                 'obj_path':
@@ -74,32 +77,33 @@ def get_affordance_vector(affordances: list, affordance_index_map: dict):
     return affordance_vector
 
 
-class PartDataset(Dataset):
+def create_missing_pcs(metas, num_points):
+    missing_metas = [
+        meta for meta in metas if not os.path.isfile(meta['pc_path'])
+    ]
+    if len(missing_metas) > 0:
+        print(f'Creating {len(missing_metas)} new point clouds...')
+        for meta in tqdm(missing_metas):
+            try:
+                create_pc(meta['obj_path'], meta['pc_path'], num_points)
+            except:
+                with open('./failed.log', 'a') as f:
+                    f.write(meta['obj_id'] + '\n')
+
+
+class ChairDataset(Dataset):
     def __init__(self, objects_path: str, num_points: int):
         self.objects_path = objects_path
-        object_metas, self.part_metas = get_metas(objects_path, num_points)
+        all_object_ids = os.listdir(objects_path)
+        self.object_ids = self._filter_ids(all_object_ids)
+
+        object_metas, self.part_metas = get_metas(objects_path,
+                                                  self.object_ids, num_points)
 
         # Create any missing point clouds
-        metas = object_metas + self.part_metas
-        missing_metas = [
-            meta for meta in metas if not os.path.isfile(meta['pc_path'])
-        ]
-        if len(missing_metas) > 0:
-            print(f'Creating {len(missing_metas)} new point clouds...')
-            for meta in tqdm(missing_metas):
-                try:
-                    create_pc(meta['obj_path'], meta['pc_path'], num_points)
-                except:
-                    with open('./failed.log', 'a') as f:
-                        f.write(meta['obj_id'] + '\n')
+        create_missing_pcs(object_metas + self.part_metas, num_points)
 
-        # Create map for creating affordance tensors
-        _, _, affordances = load_split()
-        self.affordance_index_map = {
-            aff: idx
-            for idx, aff in enumerate(sorted(affordances))
-        }
-        self.num_class = len(self.affordance_index_map)
+        self.num_class = 1
 
     def __len__(self):
         return len(self.part_metas)
@@ -109,17 +113,49 @@ class PartDataset(Dataset):
         object_pc = object_pc.points.to_numpy()
         part_pc = PyntCloud.from_file(self.part_metas[idx]['pc_path'])
         part_pc = part_pc.points.to_numpy()
-        affordance_vector = get_affordance_vector(
-            self.part_metas[idx]['affordances'], self.affordance_index_map)
+        if self.part_metas[idx]['part_name'] == 'chair_seat':
+            affordance = torch.tensor([1]).float()
+        else:
+            affordance = torch.tensor([0]).float()
         object_point_cloud = torch.from_numpy(object_pc).T
         part_point_cloud = torch.from_numpy(part_pc).T
-        affordances = torch.from_numpy(affordance_vector)
-        return object_point_cloud, part_point_cloud, affordances
+        return object_point_cloud, part_point_cloud, affordance
 
-    def create_split(self):
-        # TODO
-        pass
+    def create_split(
+        self
+    ) -> Tuple[SubsetRandomSampler, SubsetRandomSampler, SubsetRandomSampler]:
+        train_valid_ids, test_ids = train_test_split(self.object_ids,
+                                                     test_size=0.1)
+        train_ids, valid_ids = train_test_split(train_valid_ids, test_size=0.1)
+        train_indices = [
+            idx for idx, meta in enumerate(self.part_metas)
+            if meta['obj_id'] in train_ids
+        ]
+        valid_indices = [
+            idx for idx, meta in enumerate(self.part_metas)
+            if meta['obj_id'] in valid_ids
+        ]
+        test_indices = [
+            idx for idx, meta in enumerate(self.part_metas)
+            if meta['obj_id'] in test_ids
+        ]
+        return SubsetRandomSampler(train_indices), SubsetRandomSampler(
+            valid_indices), SubsetRandomSampler(test_indices)
+
+    def _filter_ids(self, ids):
+        # Filter out non-chairs
+        filtered_ids = []
+        for id in ids:
+            result_path = os.path.join(self.objects_path, id,
+                                       'result_labeled.json')
+            with open(result_path) as f:
+                obj = json.load(f)[0]
+                if obj['name'] == 'chair':
+                    filtered_ids.append(id)
+        return filtered_ids
 
 
 if __name__ == '__main__':
-    dataset = PartDataset('./data/PartNet/objects_small', 1024)
+    dataset = ChairDataset('./data/PartNet/selected_objects', 1024)
+    train_sampler, valid_sampler, test_sampler = dataset.create_split()
+    dataset.object_ids

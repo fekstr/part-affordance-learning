@@ -14,14 +14,14 @@ class PLWrapper(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         obj_pc, part_pc, target = batch
         pred, _ = self.model(obj_pc, part_pc)
-        loss = F.cross_entropy(pred, target)
+        loss = F.binary_cross_entropy(pred, target)
         self.log('train_loss', loss)
         return loss
 
     def validation_step(self, batch, batch_idx):
         obj_pc, part_pc, target = batch
         pred, _ = self.model(obj_pc, part_pc)
-        loss = F.cross_entropy(pred, target)
+        loss = F.binary_cross_entropy(pred, target)
         self.log('valid_loss', loss, on_epoch=True)
         return loss
 

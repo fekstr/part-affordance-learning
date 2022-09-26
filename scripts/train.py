@@ -46,7 +46,7 @@ def main(args):
                                                resume_id=args.resume_id,
                                                dev=args.dev)
 
-    model = PLWrapper(BaselineModel(num_classes=1), learning_rate=1e-3)
+    model = PLWrapper(BaselineModel(num_classes=1), learning_rate=1e-4)
 
     train_dataloader, valid_dataloader, _ = get_dataloaders(ChairDataset,
                                                             small=args.dev,

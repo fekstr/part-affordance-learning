@@ -8,7 +8,7 @@ from pytorch_lightning.loggers import CometLogger
 
 from src.pl.pl_wrapper import PLWrapper
 from src.models.baseline import BaselineModel
-from src.utils import get_dataloader, set_seeds
+from src.utils import get_dataloaders, set_seeds
 
 
 def init_experiment(resume_id, disable_logging=False):
@@ -33,7 +33,7 @@ def main(args):
     experiment, comet_logger = init_experiment(disable_logging=args.dev,
                                                resume_id=experiment_id)
 
-    model = PLWrapper(BaselineModel())
+    model = PLWrapper(BaselineModel(num_classes=1))
     test_dataloader = get_dataloader('test',
                                      small=args.dev,
                                      batch_size=8,
@@ -56,10 +56,8 @@ if __name__ == '__main__':
     try:
         args = parser.parse_args()
     except SystemExit:
-        args = parser.parse_args([
-            '--dev', '--checkpoint',
-            './checkpoints/e49a610f1059418abb73f0837613b696/last.ckpt'
-        ])
+        args = parser.parse_args(
+            ['--dev', '--checkpoint', './checkpoints/dev/last.ckpt'])
 
     load_dotenv()
     main(args)

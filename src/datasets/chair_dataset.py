@@ -1,15 +1,16 @@
+import pickle
+import random
 from typing import Tuple
 import os
 import json
 import torch
+from pathlib import Path
 from torch.utils.data import Dataset, SubsetRandomSampler
 from pyntcloud import PyntCloud
 from tqdm import tqdm
 from pathlib import Path
 import numpy as np
 from sklearn.model_selection import train_test_split
-
-from scripts.preprocessing.utils import load_split
 
 
 def create_pc(obj_path: str, dest_pc_path: str, num_points: int):
@@ -121,41 +122,66 @@ class ChairDataset(Dataset):
         part_point_cloud = torch.from_numpy(part_pc).T
         return object_point_cloud, part_point_cloud, affordance
 
-    def create_split(
-        self
+    def get_split(
+        self,
+        small=False
     ) -> Tuple[SubsetRandomSampler, SubsetRandomSampler, SubsetRandomSampler]:
-        train_valid_ids, test_ids = train_test_split(self.object_ids,
-                                                     test_size=0.1)
-        train_ids, valid_ids = train_test_split(train_valid_ids, test_size=0.1)
-        train_indices = [
-            idx for idx, meta in enumerate(self.part_metas)
-            if meta['obj_id'] in train_ids
-        ]
-        valid_indices = [
-            idx for idx, meta in enumerate(self.part_metas)
-            if meta['obj_id'] in valid_ids
-        ]
-        test_indices = [
-            idx for idx, meta in enumerate(self.part_metas)
-            if meta['obj_id'] in test_ids
-        ]
-        return SubsetRandomSampler(train_indices), SubsetRandomSampler(
-            valid_indices), SubsetRandomSampler(test_indices)
+        split_path = './data/chair_dataset_split.pkl'
+        if os.path.isfile(split_path):
+            print('Loading data split...')
+            with open(split_path, 'rb') as f:
+                idx_split = pickle.load(f)
+        else:
+            print('Creating new data split...')
+            train_valid_ids, test_ids = train_test_split(self.object_ids,
+                                                         test_size=0.1)
+            train_ids, valid_ids = train_test_split(train_valid_ids,
+                                                    test_size=0.1)
+            id_split = {
+                'train': train_ids,
+                'valid': valid_ids,
+                'test': test_ids
+            }
+            idx_split = dict()
+            for split in id_split:
+                idx_split[split] = [
+                    idx for idx, meta in enumerate(self.part_metas)
+                    if meta['obj_id'] in id_split[split]
+                ]
+            with open(split_path, 'wb') as f:
+                pickle.dump(idx_split, f)
+
+        if small:
+            for split in idx_split:
+                idx_split[split] = random.sample(idx_split[split], 5)
+
+        return SubsetRandomSampler(idx_split['train']), SubsetRandomSampler(
+            idx_split['valid']), SubsetRandomSampler(idx_split['test'])
 
     def _filter_ids(self, ids):
         # Filter out non-chairs
+        cache_path = './cache/chair_dataset_ids.pkl'
+        if os.path.isfile(cache_path):
+            with open(cache_path, 'rb') as f:
+                filtered_ids = pickle.load(f)
+                return filtered_ids
+
         filtered_ids = []
-        for id in ids:
+        print('Finding chair ids...')
+        for id in tqdm(ids):
             result_path = os.path.join(self.objects_path, id,
                                        'result_labeled.json')
             with open(result_path) as f:
                 obj = json.load(f)[0]
                 if obj['name'] == 'chair':
                     filtered_ids.append(id)
+        Path(os.path.dirname(cache_path)).mkdir(parents=True, exist_ok=True)
+        with open(cache_path, 'wb') as f:
+            pickle.dump(filtered_ids, f)
         return filtered_ids
 
 
 if __name__ == '__main__':
     dataset = ChairDataset('./data/PartNet/selected_objects', 1024)
-    train_sampler, valid_sampler, test_sampler = dataset.create_split()
+    train_sampler, valid_sampler, test_sampler = dataset.get_split()
     dataset.object_ids

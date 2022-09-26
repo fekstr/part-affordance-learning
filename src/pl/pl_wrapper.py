@@ -38,6 +38,9 @@ class PLWrapper(pl.LightningModule):
         mask = torch.all(targets == 0, dim=0)
         preds = preds[:, ~mask]
         targets = targets[:, ~mask]
+        self._compute_auroc(preds, targets)
+
+    def _compute_auroc(self, preds, targets):
         num_classes = targets.shape[1]
         auroc_weighted = auroc(preds, targets, num_classes, average='weighted')
         auroc_macro = auroc(preds, targets, num_classes, average='macro')

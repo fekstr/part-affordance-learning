@@ -110,17 +110,21 @@ class ChairDataset(Dataset):
         return len(self.part_metas)
 
     def __getitem__(self, idx):
-        object_pc = PyntCloud.from_file(self.part_metas[idx]['full_pc_path'])
+        meta = self.part_metas[idx]
+        object_pc = PyntCloud.from_file(meta['full_pc_path'])
         object_pc = object_pc.points.to_numpy()
-        part_pc = PyntCloud.from_file(self.part_metas[idx]['pc_path'])
+        part_pc = PyntCloud.from_file(meta['pc_path'])
         part_pc = part_pc.points.to_numpy()
-        if self.part_metas[idx]['part_name'] == 'chair_seat':
+        if meta['part_name'] == 'chair_seat':
             affordance = torch.tensor([1]).float()
         else:
             affordance = torch.tensor([0]).float()
         object_point_cloud = torch.from_numpy(object_pc).T
         part_point_cloud = torch.from_numpy(part_pc).T
-        return object_point_cloud, part_point_cloud, affordance
+        return object_point_cloud, part_point_cloud, affordance, {
+            'obj_id': meta['obj_id'],
+            'part_name': meta['part_name']
+        }
 
     def get_split(
         self,
@@ -130,7 +134,7 @@ class ChairDataset(Dataset):
         if os.path.isfile(split_path):
             print('Loading data split...')
             with open(split_path, 'rb') as f:
-                idx_split = pickle.load(f)
+                id_split = pickle.load(f)
         else:
             print('Creating new data split...')
             train_valid_ids, test_ids = train_test_split(self.object_ids,
@@ -142,14 +146,16 @@ class ChairDataset(Dataset):
                 'valid': valid_ids,
                 'test': test_ids
             }
-            idx_split = dict()
-            for split in id_split:
-                idx_split[split] = [
-                    idx for idx, meta in enumerate(self.part_metas)
-                    if meta['obj_id'] in id_split[split]
-                ]
+
             with open(split_path, 'wb') as f:
-                pickle.dump(idx_split, f)
+                pickle.dump(id_split, f)
+
+        idx_split = dict()
+        for split in id_split:
+            idx_split[split] = [
+                idx for idx, meta in enumerate(self.part_metas)
+                if meta['obj_id'] in id_split[split]
+            ]
 
         if small:
             for split in idx_split:

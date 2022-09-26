@@ -14,10 +14,9 @@ def get_dataloaders(Dataset: PartDataset,
                     small: bool,
                     batch_size: int,
                     pc_size=1024):
-    dir = 'objects_small' if small else 'selected_objects'
-    data_path = os.path.join('data', 'PartNet', dir)
+    data_path = os.path.join('data', 'PartNet', 'selected_objects')
     dataset = Dataset(data_path, pc_size)
-    train_sampler, valid_sampler, test_sampler = dataset.get_split()
+    train_sampler, valid_sampler, test_sampler = dataset.get_split(small=small)
     train_loader = DataLoader(dataset,
                               batch_size=batch_size,
                               sampler=train_sampler)

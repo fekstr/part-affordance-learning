@@ -8,8 +8,11 @@ from pytorch_lightning.loggers import CometLogger
 
 from src.pl.pl_wrapper import PLWrapper
 from src.models.baseline import BaselineModel
-from src.utils import get_dataloaders, set_seeds
+from src.datasets.utils import get_dataloaders
+from src.utils import set_seeds
 from src.datasets.chair_dataset import ChairDataset
+from src.datasets.part_dataset import PartDataset
+from src.datasets.chair_multi_dataset import ChairMultiDataset
 
 
 def init_experiment(resume_id, disable_logging=False):
@@ -21,11 +24,12 @@ def init_experiment(resume_id, disable_logging=False):
                          rest_api_key=os.environ.get('COMET_API_KEY'),
                          save_dir='./comet_logs',
                          experiment_key=experiment.get_key(),
+                         offline=disable_logging,
                          project_name="object-affordances")
     return experiment, logger
 
 
-def main(args):
+def main(args, dataset, model):
     set_seeds(1)
     torch.set_num_threads(1)
 
@@ -34,11 +38,9 @@ def main(args):
     experiment, comet_logger = init_experiment(disable_logging=args.no_logging,
                                                resume_id=experiment_id)
 
-    model = PLWrapper(BaselineModel(num_classes=1))
-    _, _, test_dataloader = get_dataloaders(ChairDataset,
+    _, _, test_dataloader = get_dataloaders(dataset,
                                             small=args.dev,
-                                            batch_size=16,
-                                            pc_size=1024)
+                                            batch_size=16)
     trainer = pl.Trainer(
         accelerator='gpu' if torch.cuda.device_count() == 1 else None,
         logger=[comet_logger])
@@ -55,11 +57,13 @@ if __name__ == '__main__':
     parser.add_argument('--no-logging', action='store_true', default=False)
     parser.add_argument('--checkpoint')
 
-    try:
-        args = parser.parse_args()
-    except SystemExit:
-        args = parser.parse_args(
-            ['--dev', '--checkpoint', './checkpoints/dev/last.ckpt'])
+    data_path = os.path.join('data', 'PartNet', 'selected_objects')
+    dataset = PartDataset(data_path, 1024)
+
+    model = PLWrapper(BaselineModel(num_classes=dataset.num_class),
+                      dataset.index_affordance_map)
+
+    args = parser.parse_args()
 
     load_dotenv()
-    main(args)
+    main(args, dataset, model)

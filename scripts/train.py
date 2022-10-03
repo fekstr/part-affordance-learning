@@ -6,14 +6,18 @@ import torch
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import CometLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
-from src.datasets.chair_dataset import ChairDataset
+# from src.datasets.chair_dataset import ChairDataset
+# from src.datasets.part_dataset import PartDataset
+from src.datasets.chair_multi_dataset import ChairMultiDataset
+from src.datasets.part_dataset import PartDataset
 
 from src.pl.pl_wrapper import PLWrapper
 from src.models.baseline import BaselineModel
-from src.utils import get_dataloaders, set_seeds
+from src.utils import set_seeds
+from src.datasets.utils import get_dataloaders
 
 
-def init_experiment(resume_id, disable_logging=False, dev=False):
+def init_experiment(tags, resume_id, disable_logging=False):
     if resume_id:
         experiment = comet_ml.ExistingExperiment(
             api_key=os.environ['COMET_API_KEY'],
@@ -23,8 +27,8 @@ def init_experiment(resume_id, disable_logging=False, dev=False):
         experiment = comet_ml.Experiment(api_key=os.environ['COMET_API_KEY'],
                                          project_name='object-affordances',
                                          disabled=disable_logging)
-        if dev:
-            experiment.add_tag('dev')
+        for tag in tags:
+            experiment.add_tag(tag)
     logger = CometLogger(api_key=os.environ.get('COMET_API_KEY'),
                          rest_api_key=os.environ.get('COMET_API_KEY'),
                          save_dir='./comet_logs',
@@ -33,7 +37,7 @@ def init_experiment(resume_id, disable_logging=False, dev=False):
     return experiment, logger
 
 
-def main(args):
+def main(args, dataset, model):
     set_seeds(1)
     torch.set_num_threads(1)
 
@@ -42,16 +46,16 @@ def main(args):
     else:
         ckpt_path = None
 
-    experiment, comet_logger = init_experiment(disable_logging=args.no_logging,
-                                               resume_id=args.resume_id,
-                                               dev=args.dev)
+    dev_tags = ['dev'] if args.dev else []
+    experiment, comet_logger = init_experiment(
+        tags=[dataset.tag] + dev_tags,
+        resume_id=args.resume_id,
+        disable_logging=args.no_logging,
+    )
 
-    model = PLWrapper(BaselineModel(num_classes=1), learning_rate=1e-5)
-
-    train_dataloader, valid_dataloader, _ = get_dataloaders(ChairDataset,
+    train_dataloader, valid_dataloader, _ = get_dataloaders(dataset,
                                                             small=args.dev,
-                                                            batch_size=16,
-                                                            pc_size=1024)
+                                                            batch_size=16)
 
     checkpoint_cb = ModelCheckpoint(dirpath=os.path.join(
         'checkpoints', experiment.get_key()),
@@ -63,7 +67,7 @@ def main(args):
         accelerator='gpu' if torch.cuda.device_count() == 1 else None,
         logger=[comet_logger],
         callbacks=None if args.no_checkpoints else [checkpoint_cb],
-        log_every_n_steps=1 if args.dev else 50,
+        log_every_n_steps=1 if args.dev else 10,
         max_epochs=2 if args.dev else 50)
 
     trainer.fit(model, train_dataloader, valid_dataloader, ckpt_path=ckpt_path)
@@ -78,12 +82,14 @@ if __name__ == '__main__':
     parser.add_argument('--no-checkpoints', action='store_true', default=False)
     parser.add_argument('--dev', action='store_true', default=False)
 
-    try:
-        args = parser.parse_args()
-    except SystemExit:
-        args = parser.parse_args(['--dev', '--no-logging', '--no-checkpoints'])
+    data_path = os.path.join('data', 'PartNet', 'selected_objects')
+    dataset = PartDataset(data_path, 1024)
+    model = PLWrapper(BaselineModel(num_classes=dataset.num_class),
+                      learning_rate=1e-5)
+
+    args = parser.parse_args()
 
     load_dotenv()
 
     torch.cuda.empty_cache()
-    main(args)
+    main(args, dataset, model)

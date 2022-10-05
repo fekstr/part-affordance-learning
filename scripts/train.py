@@ -1,4 +1,5 @@
 import comet_ml
+from types import SimpleNamespace
 import os
 
 from dotenv import load_dotenv
@@ -6,13 +7,11 @@ import torch
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import CometLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
-# from src.datasets.chair_dataset import ChairDataset
-# from src.datasets.part_dataset import PartDataset
-from src.datasets.chair_multi_dataset import ChairMultiDataset
-from src.datasets.part_dataset import PartDataset
 
+from src.datasets.dataset import CommonDataset
 from src.pl.pl_wrapper import PLWrapper
 from src.models.baseline import BaselineModel
+from src.models.baseline2 import BaselineModel2
 from src.utils import set_seeds
 from src.datasets.utils import get_dataloaders
 
@@ -37,7 +36,7 @@ def init_experiment(tags, resume_id, disable_logging=False):
     return experiment, logger
 
 
-def main(args, dataset, model):
+def main(args, dataset, model, hyperparams):
     set_seeds(1)
     torch.set_num_threads(1)
 
@@ -53,9 +52,11 @@ def main(args, dataset, model):
         disable_logging=args.no_logging,
     )
 
-    train_dataloader, valid_dataloader, _ = get_dataloaders(dataset,
-                                                            small=args.dev,
-                                                            batch_size=16)
+    comet_logger.log_hyperparams(hyperparams)
+    hyperparams = SimpleNamespace(**hyperparams)
+
+    train_dataloader, valid_dataloader, _ = get_dataloaders(
+        dataset, small=args.dev, batch_size=hyperparams.batch_size)
 
     checkpoint_cb = ModelCheckpoint(dirpath=os.path.join(
         'checkpoints', experiment.get_key()),
@@ -82,14 +83,26 @@ if __name__ == '__main__':
     parser.add_argument('--no-checkpoints', action='store_true', default=False)
     parser.add_argument('--dev', action='store_true', default=False)
 
+    hyperparams_dict = {
+        'batch_size': 8,
+        'learning_rate': 1e-5,
+        'label_smoothing': 0.1,
+    }
+    hyperparams = SimpleNamespace(**hyperparams_dict)
+
     data_path = os.path.join('data', 'PartNet', 'selected_objects')
-    dataset = PartDataset(data_path, 1024)
-    model = PLWrapper(BaselineModel(num_classes=dataset.num_class),
-                      learning_rate=1e-5)
+    dataset = CommonDataset(data_path,
+                            'chair',
+                            1024,
+                            train_object_classes=['chair'],
+                            test_object_classes=['chair'],
+                            affordances=['relax'])
+    model = PLWrapper(BaselineModel2(num_classes=dataset.num_class),
+                      hyperparams=hyperparams)
 
     args = parser.parse_args()
 
     load_dotenv()
 
     torch.cuda.empty_cache()
-    main(args, dataset, model)
+    main(args, dataset, model, hyperparams_dict)

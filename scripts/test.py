@@ -8,11 +8,10 @@ from pytorch_lightning.loggers import CometLogger
 
 from src.pl.pl_wrapper import PLWrapper
 from src.models.baseline import BaselineModel
+from src.models.baseline2 import BaselineModel2
 from src.datasets.utils import get_dataloaders
 from src.utils import set_seeds
-from src.datasets.chair_dataset import ChairDataset
-from src.datasets.part_dataset import PartDataset
-from src.datasets.chair_multi_dataset import ChairMultiDataset
+from src.datasets.dataset import CommonDataset
 
 
 def init_experiment(resume_id, disable_logging=False):
@@ -58,9 +57,14 @@ if __name__ == '__main__':
     parser.add_argument('--checkpoint')
 
     data_path = os.path.join('data', 'PartNet', 'selected_objects')
-    dataset = PartDataset(data_path, 1024)
+    dataset = CommonDataset(data_path,
+                            'chair',
+                            1024,
+                            train_object_classes=['chair'],
+                            test_object_classes=['chair'],
+                            affordances=['relax'])
 
-    model = PLWrapper(BaselineModel(num_classes=dataset.num_class),
+    model = PLWrapper(BaselineModel2(num_classes=dataset.num_class),
                       dataset.index_affordance_map)
 
     args = parser.parse_args()

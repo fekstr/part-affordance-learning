@@ -13,11 +13,9 @@ from torch.utils.data import DataLoader
 
 def get_dataloaders(dataset, small: bool, batch_size: int):
     part_obj_ids = [part_meta['obj_id'] for part_meta in dataset.part_metas]
-    train_sampler, valid_sampler, test_sampler = get_split(
-        dataset.object_ids,
-        part_obj_ids,
-        save_path=os.path.join('data', f'{dataset.split_name}_split.pkl'),
-        small=small)
+    train_sampler, valid_sampler, test_sampler = get_split(part_obj_ids,
+                                                           dataset.id_split,
+                                                           small=small)
     train_loader = DataLoader(dataset,
                               batch_size=batch_size,
                               sampler=train_sampler)
@@ -31,24 +29,10 @@ def get_dataloaders(dataset, small: bool, batch_size: int):
 
 
 def get_split(
-    object_ids,
     part_obj_ids,
-    save_path: str,
+    id_split,
     small=False
 ) -> Tuple[SubsetRandomSampler, SubsetRandomSampler, SubsetRandomSampler]:
-    if os.path.isfile(save_path):
-        print('Loading data split...')
-        with open(save_path, 'rb') as f:
-            id_split = pickle.load(f)
-    else:
-        print('Creating new data split...')
-        train_valid_ids, test_ids = train_test_split(object_ids, test_size=0.1)
-        train_ids, valid_ids = train_test_split(train_valid_ids, test_size=0.1)
-        id_split = {'train': train_ids, 'valid': valid_ids, 'test': test_ids}
-
-        with open(save_path, 'wb') as f:
-            pickle.dump(id_split, f)
-
     idx_split = dict()
     for split in id_split:
         idx_split[split] = [
@@ -108,13 +92,13 @@ def create_missing_pcs(metas, num_points):
         print(f'Creating {len(missing_metas)} new point clouds...')
         for meta in tqdm(missing_metas):
             try:
-                create_pc(meta['obj_path'], meta['pc_path'], num_points)
+                _create_pc(meta['obj_path'], meta['pc_path'], num_points)
             except:
                 with open('./failed.log', 'a') as f:
                     f.write(meta['obj_id'] + '\n')
 
 
-def create_pc(obj_path: str, dest_pc_path: str, num_points: int):
+def _create_pc(obj_path: str, dest_pc_path: str, num_points: int):
     obj = PyntCloud.from_file(obj_path)
     pc = obj.get_sample('mesh_random', n=num_points)
     pc_dir_path = os.path.dirname(dest_pc_path)

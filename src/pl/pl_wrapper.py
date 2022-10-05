@@ -1,5 +1,6 @@
 import os
 import io
+import numpy as np
 
 import torch
 import torch.nn.functional as F
@@ -27,17 +28,17 @@ def get_render(obj_id, part_name):
 
 
 class PLWrapper(pl.LightningModule):
-    def __init__(self, model, index_affordance_map=None, learning_rate=1e-4):
+    def __init__(self, model, hyperparams, index_affordance_map=None):
         super().__init__()
-        self.save_hyperparameters()
+        self.hyperparams = hyperparams
         self.model = model
-        self.learning_rate = learning_rate
         self.index_affordance_map = index_affordance_map
 
     def training_step(self, batch, batch_idx):
         obj_pc, part_pc, target, _ = batch
         pred, _ = self.model(obj_pc, part_pc)
-        loss = F.cross_entropy(pred, target)
+        loss = F.cross_entropy(
+            pred, target, label_smoothing=self.hyperparams.label_smoothing)
         self.log('train_loss', loss)
         return loss
 
@@ -70,15 +71,37 @@ class PLWrapper(pl.LightningModule):
         part_names = [id for ids in part_names_nested for id in ids]
 
         targets = targets.int()
-        self._pca(features, part_names)
+        # self._pca(features, part_names)
         # Remove dimensions with no positive samples
         # mask = torch.all(targets == 0, dim=0)
         # preds = preds[:, ~mask]
         # targets = targets[:, ~mask]
         # self._compute_auroc(preds, targets)
         # self._precision_recall(preds, targets)
+        self._check_overfitting(preds, targets)
         # self._failures(preds, targets)
         # self._min_max_scores(preds, targets, obj_ids, part_names)
+
+    def _accuracies(self, preds, targets):
+        # Compute accuracies for each class
+        raise NotImplementedError
+
+    def _check_overfitting(self, preds, targets):
+        # Computes fraction of rounded predictions with an exact match
+        # in the set of unique targets
+        np_preds = preds.cpu().numpy()
+        np_targets = targets.cpu().numpy()
+
+        matches = np.apply_along_axis(lambda x: all(x), 1,
+                                      np_preds.round() == np_targets)
+        err_preds = np_preds[~matches, :]
+
+        unique_targets = np.unique(np_targets, axis=0)
+        err_pred_matching_target = np.apply_along_axis(
+            lambda pred: pred in unique_targets, 1, err_preds.round())
+        err_pred_target_overlap = sum(
+            err_pred_matching_target) / err_preds.shape[0]
+        self.log('err_pred_target_overlap', err_pred_target_overlap)
 
     def _log_image(self, name):
         buf = io.BytesIO()
@@ -117,7 +140,6 @@ class PLWrapper(pl.LightningModule):
         with open('./failures.txt', 'a') as f:
             f.write('Failures\n\n')
             for i in topk.indices:
-                round_pred = torch.round(preds[i]).int()
                 f.write('Pred: ' + str(round_pred) + '\n')
                 f.write('Target: ' + str(targets[i]) + '\n\n')
 
@@ -175,5 +197,6 @@ class PLWrapper(pl.LightningModule):
         self.log('max_err_test', max_err)
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
+        optimizer = torch.optim.Adam(self.parameters(),
+                                     lr=self.hyperparams.learning_rate)
         return optimizer

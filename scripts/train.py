@@ -1,6 +1,7 @@
 import comet_ml
 from types import SimpleNamespace
 import os
+import json
 
 from dotenv import load_dotenv
 import torch
@@ -86,17 +87,24 @@ if __name__ == '__main__':
     hyperparams_dict = {
         'batch_size': 8,
         'learning_rate': 1e-5,
-        'label_smoothing': 0.1,
+        'label_smoothing': 0.0,
     }
     hyperparams = SimpleNamespace(**hyperparams_dict)
 
-    data_path = os.path.join('data', 'PartNet', 'selected_objects')
-    dataset = CommonDataset(data_path,
-                            'chair',
-                            1024,
-                            train_object_classes=['chair'],
-                            test_object_classes=['chair'],
-                            affordances=['relax'])
+    # data_path = os.path.join('data', 'PartNet', 'selected_objects')
+    data_path = os.path.join('data', 'PartNet', 'objects_small')
+    with open(os.path.join('data', 'manual_class_labels.json')) as f:
+        labels = json.load(f)
+    dataset = CommonDataset(
+        data_path,
+        'chair',
+        1024,
+        train_object_classes=list(labels.keys()),
+        test_object_classes=list(labels.keys()),
+        affordances=['sit'],
+        manual_labels=labels,
+        force_new_split=True,
+    )
     model = PLWrapper(BaselineModel2(num_classes=dataset.num_class),
                       hyperparams=hyperparams)
 

@@ -1,5 +1,4 @@
 from typing import Tuple
-import pickle
 import random
 import os
 import json
@@ -7,7 +6,6 @@ from tqdm import tqdm
 from pathlib import Path
 from pyntcloud import PyntCloud
 from torch.utils.data import SubsetRandomSampler
-from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader
 
 
@@ -47,18 +45,31 @@ def get_split(
         idx_split['valid']), SubsetRandomSampler(idx_split['test'])
 
 
-def get_metas(objects_path, object_ids, num_points):
+def get_metas(objects_path, object_ids, num_points, manual=False):
     part_metas = []
     object_metas = []
     for id in object_ids:
-        result_labeled_path = os.path.join(objects_path, id,
-                                           'result_labeled.json')
-        pc_path = os.path.join(objects_path, id, 'point_clouds')
-        with open(result_labeled_path) as f:
-            result_labeled = json.load(f)
-            obj = result_labeled[0]
-            parts = obj['labeled_parts']
+        if manual:
+            result_merged_path = os.path.join(objects_path, id,
+                                              'result_merged.json')
+            with open(result_merged_path) as f:
+                obj = json.load(f)[0]
+                if len(obj['children']
+                       ) == 1 and 'children' in obj['children'][0]:
+                    parts = obj['children'][0]['children']
+                    name = obj['children'][0]['name']
+                else:
+                    parts = obj['children']
+                    name = obj['name']
+        else:
+            result_labeled_path = os.path.join(objects_path, id,
+                                               'result_labeled.json')
+            with open(result_labeled_path) as f:
+                obj = json.load(f)[0]
+                parts = obj['labeled_parts']
+                name = obj['name']
 
+        pc_path = os.path.join(objects_path, id, 'point_clouds')
         full_pc_path = os.path.join(pc_path, f'full_{num_points}.ply')
         object_metas.append({
             'obj_id': id,
@@ -69,6 +80,8 @@ def get_metas(objects_path, object_ids, num_points):
             part_metas.append({
                 'part_name':
                 part['name'],
+                'obj_name':
+                name,
                 'obj_id':
                 id,
                 'obj_path':
@@ -78,7 +91,7 @@ def get_metas(objects_path, object_ids, num_points):
                 'full_pc_path':
                 full_pc_path,
                 'affordances':
-                part['affordances']
+                part['affordances'] if 'affordances' in part else None
             })
 
     return object_metas, part_metas

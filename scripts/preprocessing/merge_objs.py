@@ -69,6 +69,7 @@ if __name__ == '__main__':
         full_obj_path = merge_objs(obj_objs, 'full', objs_path, args.path_only)
 
         obj_merged = result[0]
+        obj_merged['obj_path'] = full_obj_path
         children = obj_merged['children']
         if len(children) == 1 and 'children' in children[0]:
             name = children[0]['name']

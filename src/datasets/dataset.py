@@ -21,16 +21,23 @@ def _get_ids(objects_path, object_classes):
 
     # Load map from IDs to object names
     name_id_map_path = os.path.join('cache', 'name_id_map.pkl')
-    if os.path.isfile(name_id_map_path):
+    # if os.path.isfile(name_id_map_path):
+    if False:
         with open(name_id_map_path, 'rb') as f:
             name_id_map = pickle.load(f)
     else:
         name_id_map = defaultdict(lambda: list())
         for id in tqdm(object_ids):
-            result_path = os.path.join(objects_path, id, 'result_labeled.json')
+            # result_path = os.path.join(objects_path, id, 'result_labeled.json')
+            result_path = os.path.join(objects_path, id, 'result_merged.json')
             with open(result_path) as f:
                 obj = json.load(f)[0]
-                name_id_map[obj['name']].append(id)
+                if len(obj['children']
+                       ) == 1 and 'children' in obj['children'][0]:
+                    name = obj['children'][0]['name']
+                else:
+                    name = obj['name']
+                name_id_map[name].append(id)
         with open(name_id_map_path, 'wb') as f:
             pickle.dump(dict(name_id_map), f)
 
@@ -44,11 +51,19 @@ def _get_ids(objects_path, object_classes):
     return filtered_ids, labels
 
 
-def _get_split(objects_path, train_object_classes, test_object_classes):
+def _get_split(objects_path, train_object_classes, test_object_classes,
+               force_new_split):
     """Creates a train-validation-test split"""
 
     # Get unique id for object class combination
     m = hashlib.md5()
+    bc = bytes('train', 'utf-8')
+    m.update(bc)
+    for object_class in sorted(train_object_classes):
+        bc = bytes(object_class, 'utf-8')
+        m.update(bc)
+    bc = bytes('test', 'utf-8')
+    m.update(bc)
     for object_class in sorted(train_object_classes + test_object_classes):
         bc = bytes(object_class, 'utf-8')
         m.update(bc)
@@ -57,7 +72,7 @@ def _get_split(objects_path, train_object_classes, test_object_classes):
     split_path = os.path.join('data', 'splits', f'{split_id}.pkl')
 
     # Load and return split if already created
-    if os.path.isfile(split_path):
+    if os.path.isfile(split_path) and not force_new_split:
         with open(split_path, 'rb') as f:
             id_split = pickle.load(f)
             all_ids = id_split['train'] + id_split['valid'] + id_split['test']
@@ -66,8 +81,12 @@ def _get_split(objects_path, train_object_classes, test_object_classes):
     # Otherwise, create the split
     train_ids, train_labels = _get_ids(objects_path, train_object_classes)
     test_ids, test_labels = _get_ids(objects_path, train_object_classes)
-    all_ids = train_ids + test_ids
-    all_labels = train_labels + test_labels
+    if train_ids == test_ids:
+        all_ids = train_ids
+        all_labels = train_labels
+    else:
+        all_ids = train_ids + test_ids
+        all_labels = train_labels + test_labels
 
     intersection = set(train_object_classes).intersection(
         set(test_object_classes))
@@ -112,29 +131,34 @@ def _validate_options(object_classes, affordances):
 
 
 class CommonDataset(Dataset):
-    def __init__(
-        self,
-        objects_path: str,
-        tag: str,
-        num_points: int,
-        train_object_classes,
-        test_object_classes,
-        affordances,
-    ):
+    def __init__(self,
+                 objects_path: str,
+                 tag: str,
+                 num_points: int,
+                 train_object_classes,
+                 test_object_classes,
+                 affordances,
+                 manual_labels=None,
+                 force_new_split=False):
         # TODO: add shortcut for using all classes
         object_classes = train_object_classes + test_object_classes
-        _validate_options(object_classes, affordances)
+        # _validate_options(object_classes, affordances)
         self.objects_path = objects_path
         self.id_split, object_ids = _get_split(objects_path,
                                                train_object_classes,
-                                               test_object_classes)
+                                               test_object_classes,
+                                               force_new_split)
         self.affordances = sorted(affordances)
         self._init_affordance_maps(self.affordances)
         self.num_class = len(affordances)
         self.tag = tag
         self.object_metas, self.part_metas = get_metas(objects_path,
-                                                       object_ids, num_points)
+                                                       object_ids,
+                                                       num_points,
+                                                       manual=manual_labels
+                                                       is not None)
         create_missing_pcs(self.object_metas + self.part_metas, num_points)
+        self.manual_labels = manual_labels
 
     def _init_affordance_maps(self, affordances):
         self.affordance_index_map = {
@@ -162,7 +186,11 @@ class CommonDataset(Dataset):
         object_pc = object_pc.points.to_numpy()
         part_pc = PyntCloud.from_file(meta['pc_path'])
         part_pc = part_pc.points.to_numpy()
-        affordance = self._encode_affordances(meta['affordances'])
+        if self.manual_labels:
+            affordance = self._encode_affordances(
+                self.manual_labels[meta['obj_name']])
+        else:
+            affordance = self._encode_affordances(meta['affordances'])
         object_point_cloud = torch.from_numpy(object_pc).T
         part_point_cloud = torch.from_numpy(part_pc).T
         return object_point_cloud, part_point_cloud, affordance, {

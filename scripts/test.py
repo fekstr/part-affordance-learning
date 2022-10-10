@@ -39,7 +39,7 @@ def main(args, dataset, model):
 
     _, _, test_dataloader = get_dataloaders(dataset,
                                             small=args.dev,
-                                            batch_size=16)
+                                            batch_size=8)
     trainer = pl.Trainer(
         accelerator='gpu' if torch.cuda.device_count() == 1 else None,
         logger=[comet_logger])
@@ -56,13 +56,39 @@ if __name__ == '__main__':
     parser.add_argument('--no-logging', action='store_true', default=False)
     parser.add_argument('--checkpoint')
 
+    config = {
+        'train_object_classes': [
+            'chair', 'regular_table', 'normal_bottle', 'scissors', 'bunk_bed',
+            'desk', 'normal_hat', 'game_table', 'refrigerator', 'body',
+            'picnic_table', 'loft_bed', 'door', 'microwave', 'door_set',
+            'bowl', 'mug', 'pendulum_clock', 'dishwasher',
+            'hand_or_shoulder_bag', 'backpack', 'paper_bag', 'cap', 'knife',
+            'regular_bed', 'luggage', 'briefcase', 'jug', 'hammock'
+        ],
+        'test_object_classes': [
+            'chair', 'regular_table', 'normal_bottle', 'scissors', 'bunk_bed',
+            'desk', 'normal_hat', 'game_table', 'refrigerator', 'body',
+            'picnic_table', 'loft_bed', 'door', 'microwave', 'door_set',
+            'bowl', 'mug', 'pendulum_clock', 'dishwasher',
+            'hand_or_shoulder_bag', 'backpack', 'paper_bag', 'cap', 'knife',
+            'regular_bed', 'luggage', 'briefcase', 'jug', 'hammock'
+        ],
+        'affordances': [
+            'backpack', 'cut', 'lay', 'lie', 'place', 'pour', 'put', 'relax',
+            'serve', 'sleep', 'study', 'work', 'cover', 'handle', 'carry',
+            'hold'
+        ],
+    }
+
     data_path = os.path.join('data', 'PartNet', 'selected_objects')
-    dataset = CommonDataset(data_path,
-                            'chair',
-                            1024,
-                            train_object_classes=['chair'],
-                            test_object_classes=['chair'],
-                            affordances=['relax'])
+    dataset = CommonDataset(
+        data_path,
+        'all_parts',
+        1024,
+        train_object_classes=config['train_object_classes'],
+        test_object_classes=config['test_object_classes'],
+        affordances=config['affordances'],
+        test=True)
 
     model = PLWrapper(BaselineModel2(num_classes=dataset.num_class),
                       dataset.index_affordance_map)

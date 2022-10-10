@@ -37,7 +37,7 @@ def init_experiment(tags, resume_id, disable_logging=False):
     return experiment, logger
 
 
-def main(args, dataset, model, hyperparams):
+def main(args, dataset, model, hyperparams, config):
     set_seeds(1)
     torch.set_num_threads(1)
 
@@ -53,7 +53,8 @@ def main(args, dataset, model, hyperparams):
         disable_logging=args.no_logging,
     )
 
-    comet_logger.log_hyperparams(hyperparams)
+    options = {**hyperparams, **config}
+    comet_logger.log_hyperparams(options)
     hyperparams = SimpleNamespace(**hyperparams)
 
     train_dataloader, valid_dataloader, _ = get_dataloaders(
@@ -83,6 +84,7 @@ if __name__ == '__main__':
     parser.add_argument('--no-logging', action='store_true', default=False)
     parser.add_argument('--no-checkpoints', action='store_true', default=False)
     parser.add_argument('--dev', action='store_true', default=False)
+    args = parser.parse_args()
 
     hyperparams_dict = {
         'batch_size': 8,
@@ -90,27 +92,51 @@ if __name__ == '__main__':
         'label_smoothing': 0.0,
     }
     hyperparams = SimpleNamespace(**hyperparams_dict)
+    config = {
+        'train_object_classes': [
+            'chair', 'regular_table', 'normal_bottle', 'scissors', 'bunk_bed',
+            'desk', 'normal_hat', 'game_table', 'refrigerator', 'body',
+            'picnic_table', 'loft_bed', 'door', 'microwave', 'door_set',
+            'bowl', 'mug', 'pendulum_clock', 'dishwasher',
+            'hand_or_shoulder_bag', 'backpack', 'paper_bag', 'cap', 'knife',
+            'regular_bed', 'luggage', 'briefcase', 'jug', 'hammock'
+        ],
+        'test_object_classes': [
+            'chair', 'regular_table', 'normal_bottle', 'scissors', 'bunk_bed',
+            'desk', 'normal_hat', 'game_table', 'refrigerator', 'body',
+            'picnic_table', 'loft_bed', 'door', 'microwave', 'door_set',
+            'bowl', 'mug', 'pendulum_clock', 'dishwasher',
+            'hand_or_shoulder_bag', 'backpack', 'paper_bag', 'cap', 'knife',
+            'regular_bed', 'luggage', 'briefcase', 'jug', 'hammock'
+        ],
+        'affordances': [
+            'backpack', 'cut', 'lay', 'lie', 'place', 'pour', 'put', 'relax',
+            'serve', 'sleep', 'study', 'work', 'cover', 'handle', 'carry',
+            'hold'
+        ],
+    }
 
-    # data_path = os.path.join('data', 'PartNet', 'selected_objects')
-    data_path = os.path.join('data', 'PartNet', 'objects_small')
+    if args.resume_id:
+        data_path = os.path.join('data', 'PartNet', 'selected_objects')
+    else:
+        data_path = os.path.join('data', 'PartNet', 'objects_small')
     with open(os.path.join('data', 'manual_class_labels.json')) as f:
         labels = json.load(f)
     dataset = CommonDataset(
         data_path,
-        'chair',
-        1024,
-        train_object_classes=list(labels.keys()),
-        test_object_classes=list(labels.keys()),
-        affordances=['sit'],
-        manual_labels=labels,
-        force_new_split=True,
+        tag='all_parts',
+        num_points=1024,
+        train_object_classes=config['train_object_classes'],
+        test_object_classes=config['test_object_classes'],
+        affordances=config['affordances'],
+        # manual_labels=labels,
+        include_unlabeled_parts=False,
+        # force_new_split=True,
     )
     model = PLWrapper(BaselineModel2(num_classes=dataset.num_class),
                       hyperparams=hyperparams)
 
-    args = parser.parse_args()
-
     load_dotenv()
 
     torch.cuda.empty_cache()
-    main(args, dataset, model, hyperparams_dict)
+    main(args, dataset, model, hyperparams_dict, config)

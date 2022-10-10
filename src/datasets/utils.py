@@ -45,22 +45,21 @@ def get_split(
         idx_split['valid']), SubsetRandomSampler(idx_split['test'])
 
 
-def get_metas(objects_path, object_ids, num_points, manual=False):
+def get_metas(objects_path,
+              object_ids,
+              num_points,
+              include_unlabeled_parts=False):
     part_metas = []
     object_metas = []
-    for id in object_ids:
-        if manual:
+    print('Loading metas...')
+    for id in tqdm(object_ids):
+        if include_unlabeled_parts:
             result_merged_path = os.path.join(objects_path, id,
                                               'result_merged.json')
             with open(result_merged_path) as f:
                 obj = json.load(f)[0]
-                if len(obj['children']
-                       ) == 1 and 'children' in obj['children'][0]:
-                    parts = obj['children'][0]['children']
-                    name = obj['children'][0]['name']
-                else:
-                    parts = obj['children']
-                    name = obj['name']
+                parts = obj['children']
+                name = obj['name']
         else:
             result_labeled_path = os.path.join(objects_path, id,
                                                'result_labeled.json')

@@ -69,11 +69,11 @@ if __name__ == '__main__':
         full_obj_path = merge_objs(obj_objs, 'full', objs_path, args.path_only)
 
         obj_merged = result[0]
-        obj_merged['obj_path'] = full_obj_path
         children = obj_merged['children']
         if len(children) == 1 and 'children' in children[0]:
-            name = children[0]['name']
+            obj_merged = children[0]
             children = children[0]['children']
+        obj_merged['obj_path'] = full_obj_path
         for child in children:
             child_objs = get_objs([child])
             child_obj_path = merge_objs(child_objs, child['name'], objs_path,

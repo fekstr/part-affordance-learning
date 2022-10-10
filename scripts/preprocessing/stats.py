@@ -31,6 +31,8 @@ def count_names(ids, path):
 selected_name_counts = count_names(selected_ids, selected_path)
 other_name_counts = count_names(other_ids, other_path)
 
+selected_name_counts.keys()
+
 
 def sort_dict(d):
     return {
@@ -77,14 +79,3 @@ selected_part_counts.keys()
 selected_part_counts['desk']
 other_part_counts.keys()
 other_part_counts['desk']
-
-# select_parts = {
-#     'train': {
-#         'chair': ['chair_back', 'chair_arm', 'chair_seat', 'chair_base'],
-#         'regular_table': ['tabletop', 'table_base'],
-#         'cabinet': ['cabinet_frame', 'cabinet_base', 'cabinet_door']
-#     },
-#     'test': {
-#         'chair': ['chair_back', 'chair_arm', 'chair_seat', 'chair_base'],
-#     }
-# }

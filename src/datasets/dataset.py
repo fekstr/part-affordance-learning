@@ -32,12 +32,7 @@ def _get_ids(objects_path, object_classes):
             result_path = os.path.join(objects_path, id, 'result_merged.json')
             with open(result_path) as f:
                 obj = json.load(f)[0]
-                if len(obj['children']
-                       ) == 1 and 'children' in obj['children'][0]:
-                    name = obj['children'][0]['name']
-                else:
-                    name = obj['name']
-                name_id_map[name].append(id)
+                name_id_map[obj['name']].append(id)
         with open(name_id_map_path, 'wb') as f:
             pickle.dump(dict(name_id_map), f)
 
@@ -51,12 +46,17 @@ def _get_ids(objects_path, object_classes):
     return filtered_ids, labels
 
 
-def _get_split(objects_path, train_object_classes, test_object_classes,
-               force_new_split):
+def _get_split(objects_path,
+               train_object_classes,
+               test_object_classes,
+               force_new_split,
+               test=False):
     """Creates a train-validation-test split"""
 
     # Get unique id for object class combination
     m = hashlib.md5()
+    bc = bytes(objects_path, 'utf-8')
+    m.update(bc)
     bc = bytes('train', 'utf-8')
     m.update(bc)
     for object_class in sorted(train_object_classes):
@@ -77,6 +77,9 @@ def _get_split(objects_path, train_object_classes, test_object_classes,
             id_split = pickle.load(f)
             all_ids = id_split['train'] + id_split['valid'] + id_split['test']
             return id_split, all_ids
+
+    if test:
+        raise FileNotFoundError('No split found')
 
     # Otherwise, create the split
     train_ids, train_labels = _get_ids(objects_path, train_object_classes)
@@ -139,7 +142,9 @@ class CommonDataset(Dataset):
                  test_object_classes,
                  affordances,
                  manual_labels=None,
-                 force_new_split=False):
+                 include_unlabeled_parts=False,
+                 force_new_split=False,
+                 test=False):
         # TODO: add shortcut for using all classes
         object_classes = train_object_classes + test_object_classes
         # _validate_options(object_classes, affordances)
@@ -147,16 +152,17 @@ class CommonDataset(Dataset):
         self.id_split, object_ids = _get_split(objects_path,
                                                train_object_classes,
                                                test_object_classes,
-                                               force_new_split)
+                                               force_new_split,
+                                               test=test)
         self.affordances = sorted(affordances)
         self._init_affordance_maps(self.affordances)
         self.num_class = len(affordances)
         self.tag = tag
-        self.object_metas, self.part_metas = get_metas(objects_path,
-                                                       object_ids,
-                                                       num_points,
-                                                       manual=manual_labels
-                                                       is not None)
+        self.object_metas, self.part_metas = get_metas(
+            objects_path,
+            object_ids,
+            num_points,
+            include_unlabeled_parts=include_unlabeled_parts)
         create_missing_pcs(self.object_metas + self.part_metas, num_points)
         self.manual_labels = manual_labels
 

@@ -6,6 +6,7 @@ import torch
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import CometLogger
 
+from src.config import config
 from src.pl.pl_wrapper import PLWrapper
 from src.models.baseline import BaselineModel
 from src.models.baseline2 import BaselineModel2
@@ -55,30 +56,6 @@ if __name__ == '__main__':
     parser.add_argument('--dev', action='store_true')
     parser.add_argument('--no-logging', action='store_true', default=False)
     parser.add_argument('--checkpoint')
-
-    config = {
-        'train_object_classes': [
-            'chair', 'regular_table', 'normal_bottle', 'scissors', 'bunk_bed',
-            'desk', 'normal_hat', 'game_table', 'refrigerator', 'body',
-            'picnic_table', 'loft_bed', 'door', 'microwave', 'door_set',
-            'bowl', 'mug', 'pendulum_clock', 'dishwasher',
-            'hand_or_shoulder_bag', 'backpack', 'paper_bag', 'cap', 'knife',
-            'regular_bed', 'luggage', 'briefcase', 'jug', 'hammock'
-        ],
-        'test_object_classes': [
-            'chair', 'regular_table', 'normal_bottle', 'scissors', 'bunk_bed',
-            'desk', 'normal_hat', 'game_table', 'refrigerator', 'body',
-            'picnic_table', 'loft_bed', 'door', 'microwave', 'door_set',
-            'bowl', 'mug', 'pendulum_clock', 'dishwasher',
-            'hand_or_shoulder_bag', 'backpack', 'paper_bag', 'cap', 'knife',
-            'regular_bed', 'luggage', 'briefcase', 'jug', 'hammock'
-        ],
-        'affordances': [
-            'backpack', 'cut', 'lay', 'lie', 'place', 'pour', 'put', 'relax',
-            'serve', 'sleep', 'study', 'work', 'cover', 'handle', 'carry',
-            'hold'
-        ],
-    }
 
     data_path = os.path.join('data', 'PartNet', 'selected_objects')
     dataset = CommonDataset(

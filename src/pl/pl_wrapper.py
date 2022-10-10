@@ -1,4 +1,5 @@
 import os
+import pickle
 
 import torch
 import torch.nn.functional as F
@@ -26,11 +27,16 @@ def get_render(obj_id, part_name):
 
 
 class PLWrapper(pl.LightningModule):
-    def __init__(self, model, hyperparams, index_affordance_map=None):
+    def __init__(self,
+                 model,
+                 hyperparams,
+                 index_affordance_map=None,
+                 use_test_cache=False):
         super().__init__()
         self.hyperparams = hyperparams
         self.model = model
         self.index_affordance_map = index_affordance_map
+        self.use_test_cache = use_test_cache
 
     def training_step(self, batch, batch_idx):
         obj_pc, part_pc, target, _ = batch
@@ -48,6 +54,9 @@ class PLWrapper(pl.LightningModule):
         return loss
 
     def test_step(self, batch, batch_idx):
+        if self.use_test_cache:
+            with open('./data/cache/test_cache.pkl', 'rb') as f:
+                cached_batch = pickle.load(f)
         obj_pc, part_pc, targets, part_metas = batch
         preds, features = self.model(obj_pc, part_pc)
         return {

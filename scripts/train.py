@@ -9,6 +9,7 @@ import pytorch_lightning as pl
 from pytorch_lightning.loggers import CometLogger
 from pytorch_lightning.callbacks import ModelCheckpoint
 
+from src.config import hyperparams_dict, config
 from src.datasets.dataset import CommonDataset
 from src.pl.pl_wrapper import PLWrapper
 from src.models.baseline import BaselineModel
@@ -86,35 +87,7 @@ if __name__ == '__main__':
     parser.add_argument('--dev', action='store_true', default=False)
     args = parser.parse_args()
 
-    hyperparams_dict = {
-        'batch_size': 8,
-        'learning_rate': 1e-5,
-        'label_smoothing': 0.0,
-    }
     hyperparams = SimpleNamespace(**hyperparams_dict)
-    config = {
-        'train_object_classes': [
-            'chair', 'regular_table', 'normal_bottle', 'scissors', 'bunk_bed',
-            'desk', 'normal_hat', 'game_table', 'refrigerator', 'body',
-            'picnic_table', 'loft_bed', 'door', 'microwave', 'door_set',
-            'bowl', 'mug', 'pendulum_clock', 'dishwasher',
-            'hand_or_shoulder_bag', 'backpack', 'paper_bag', 'cap', 'knife',
-            'regular_bed', 'luggage', 'briefcase', 'jug', 'hammock'
-        ],
-        'test_object_classes': [
-            'chair', 'regular_table', 'normal_bottle', 'scissors', 'bunk_bed',
-            'desk', 'normal_hat', 'game_table', 'refrigerator', 'body',
-            'picnic_table', 'loft_bed', 'door', 'microwave', 'door_set',
-            'bowl', 'mug', 'pendulum_clock', 'dishwasher',
-            'hand_or_shoulder_bag', 'backpack', 'paper_bag', 'cap', 'knife',
-            'regular_bed', 'luggage', 'briefcase', 'jug', 'hammock'
-        ],
-        'affordances': [
-            'backpack', 'cut', 'lay', 'lie', 'place', 'pour', 'put', 'relax',
-            'serve', 'sleep', 'study', 'work', 'cover', 'handle', 'carry',
-            'hold'
-        ],
-    }
 
     if args.resume_id:
         data_path = os.path.join('data', 'PartNet', 'selected_objects')

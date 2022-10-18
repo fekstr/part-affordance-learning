@@ -12,6 +12,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from src.config import hyperparams_dict, config
 from src.datasets.dataset import CommonDataset
 from src.pl.pl_wrapper import PLWrapper
+from src.models.weak import WeakModel
 from src.models.baseline import BaselineModel
 from src.models.baseline2 import BaselineModel2
 from src.utils import set_seeds
@@ -59,7 +60,10 @@ def main(args, dataset, model, hyperparams, config):
     hyperparams = SimpleNamespace(**hyperparams)
 
     train_dataloader, valid_dataloader, _ = get_dataloaders(
-        dataset, small=args.dev, batch_size=hyperparams.batch_size)
+        dataset,
+        small=args.dev,
+        batch_size=hyperparams.batch_size,
+        multipart=config['multipart'])
 
     checkpoint_cb = ModelCheckpoint(dirpath=os.path.join(
         'checkpoints', experiment.get_key()),
@@ -89,10 +93,7 @@ if __name__ == '__main__':
 
     hyperparams = SimpleNamespace(**hyperparams_dict)
 
-    if args.resume_id:
-        data_path = os.path.join('data', 'PartNet', 'selected_objects')
-    else:
-        data_path = os.path.join('data', 'PartNet', 'objects_small')
+    data_path = os.path.join('data', 'PartNet', 'objects_small')
     with open(os.path.join('data', 'manual_class_labels.json')) as f:
         labels = json.load(f)
     dataset = CommonDataset(
@@ -102,11 +103,12 @@ if __name__ == '__main__':
         train_object_classes=config['train_object_classes'],
         test_object_classes=config['test_object_classes'],
         affordances=config['affordances'],
-        # manual_labels=labels,
-        include_unlabeled_parts=False,
+        manual_labels=labels,
+        include_unlabeled_parts=True,
+        return_all_parts=config['multipart']
         # force_new_split=True,
     )
-    model = PLWrapper(BaselineModel2(num_classes=dataset.num_class),
+    model = PLWrapper(WeakModel(num_classes=dataset.num_class),
                       hyperparams=hyperparams)
 
     load_dotenv()

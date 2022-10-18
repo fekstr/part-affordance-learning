@@ -1,3 +1,4 @@
+from collections import defaultdict
 from typing import Tuple
 import random
 import os
@@ -9,9 +10,14 @@ from torch.utils.data import SubsetRandomSampler
 from torch.utils.data import DataLoader
 
 
-def get_dataloaders(dataset, small: bool, batch_size: int):
-    part_obj_ids = [part_meta['obj_id'] for part_meta in dataset.part_metas]
-    train_sampler, valid_sampler, test_sampler = get_split(part_obj_ids,
+def get_dataloaders(dataset, small: bool, batch_size: int, multipart: bool):
+    if multipart:
+        obj_ids = [
+            object_meta['obj_id'] for object_meta in dataset.object_metas
+        ]
+    else:
+        obj_ids = [part_meta['obj_id'] for part_meta in dataset.part_metas]
+    train_sampler, valid_sampler, test_sampler = get_split(obj_ids,
                                                            dataset.id_split,
                                                            small=small)
     train_loader = DataLoader(dataset,
@@ -27,19 +33,19 @@ def get_dataloaders(dataset, small: bool, batch_size: int):
 
 
 def get_split(
-    part_obj_ids,
+    obj_ids,
     id_split,
     small=False
 ) -> Tuple[SubsetRandomSampler, SubsetRandomSampler, SubsetRandomSampler]:
     idx_split = dict()
     for split in id_split:
         idx_split[split] = [
-            idx for idx, id in enumerate(part_obj_ids) if id in id_split[split]
+            idx for idx, id in enumerate(obj_ids) if id in id_split[split]
         ]
 
     if small:
         for split in idx_split:
-            idx_split[split] = random.sample(idx_split[split], 5)
+            idx_split[split] = random.sample(idx_split[split], 2)
 
     return SubsetRandomSampler(idx_split['train']), SubsetRandomSampler(
         idx_split['valid']), SubsetRandomSampler(idx_split['test'])
@@ -70,13 +76,9 @@ def get_metas(objects_path,
 
         pc_path = os.path.join(objects_path, id, 'point_clouds')
         full_pc_path = os.path.join(pc_path, f'full_{num_points}.ply')
-        object_metas.append({
-            'obj_id': id,
-            'obj_path': obj['obj_path'],
-            'pc_path': full_pc_path,
-        })
+        obj_part_metas = []
         for part in parts:
-            part_metas.append({
+            obj_part_metas.append({
                 'part_name':
                 part['name'],
                 'obj_name':
@@ -92,6 +94,19 @@ def get_metas(objects_path,
                 'affordances':
                 part['affordances'] if 'affordances' in part else None
             })
+        part_metas += obj_part_metas
+        object_metas.append({
+            'obj_id':
+            id,
+            'obj_name':
+            name,
+            'obj_path':
+            obj['obj_path'],
+            'pc_path':
+            full_pc_path,
+            'part_pc_paths': [meta['pc_path'] for meta in obj_part_metas],
+            'part_names': [meta['part_name'] for meta in obj_part_metas]
+        })
 
     return object_metas, part_metas
 

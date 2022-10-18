@@ -143,6 +143,7 @@ class CommonDataset(Dataset):
                  affordances,
                  manual_labels=None,
                  include_unlabeled_parts=False,
+                 return_all_parts=False,
                  force_new_split=False,
                  test=False):
         # TODO: add shortcut for using all classes
@@ -165,6 +166,7 @@ class CommonDataset(Dataset):
             include_unlabeled_parts=include_unlabeled_parts)
         create_missing_pcs(self.object_metas + self.part_metas, num_points)
         self.manual_labels = manual_labels
+        self.return_all_parts = return_all_parts
 
     def _init_affordance_maps(self, affordances):
         self.affordance_index_map = {
@@ -187,6 +189,38 @@ class CommonDataset(Dataset):
         return torch.tensor(affordance_vector)
 
     def __getitem__(self, idx):
+        if self.return_all_parts:
+            return self._get_parts(idx)
+        else:
+            return self._get_part(idx)
+
+    def _get_parts(self, idx):
+        meta = self.object_metas[idx]
+        part_pcs = []
+        for path in meta['part_pc_paths']:
+            part_pc = PyntCloud.from_file(path)
+            part_pc = part_pc.points.to_numpy()
+            part_pcs.append(part_pc)
+        if self.manual_labels:
+            affordance = self._encode_affordances(
+                self.manual_labels[meta['obj_name']])
+        else:
+            affordance = self._encode_affordances(meta['affordances'])
+        part_point_clouds = [
+            torch.from_numpy(part_pc).T for part_pc in part_pcs
+        ]
+        # TODO: figure out how to return dynamic size tensors without crashing
+        part_point_clouds = []
+        for part_pc in part_pcs:
+            pc_tensor = torch.from_numpy(part_pc).T.unsqueeze(dim=2)
+            part_point_clouds.append(pc_tensor)
+        all_pc_tensor = torch.cat(part_point_clouds, dim=2)
+        return all_pc_tensor, affordance, {
+            'obj_id': meta['obj_id'],
+            'part_names': meta['part_names']
+        }
+
+    def _get_part(self, idx):
         meta = self.part_metas[idx]
         object_pc = PyntCloud.from_file(meta['full_pc_path'])
         object_pc = object_pc.points.to_numpy()
@@ -199,7 +233,7 @@ class CommonDataset(Dataset):
             affordance = self._encode_affordances(meta['affordances'])
         object_point_cloud = torch.from_numpy(object_pc).T
         part_point_cloud = torch.from_numpy(part_pc).T
-        return object_point_cloud, part_point_cloud, affordance, {
+        return [object_point_cloud, part_point_cloud], affordance, {
             'obj_id': meta['obj_id'],
             'part_name': meta['part_name']
         }

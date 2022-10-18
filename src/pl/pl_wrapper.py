@@ -39,16 +39,16 @@ class PLWrapper(pl.LightningModule):
         self.use_test_cache = use_test_cache
 
     def training_step(self, batch, batch_idx):
-        obj_pc, part_pc, target, _ = batch
-        pred, _ = self.model(obj_pc, part_pc)
+        pcs, target, _ = batch
+        pred, _ = self.model(pcs)
         loss = F.cross_entropy(
             pred, target, label_smoothing=self.hyperparams.label_smoothing)
         self.log('train_loss', loss)
         return loss
 
     def validation_step(self, batch, batch_idx):
-        obj_pc, part_pc, target, _ = batch
-        pred, _ = self.model(obj_pc, part_pc)
+        pcs, target, _ = batch
+        pred, _ = self.model(pcs)
         loss = F.cross_entropy(pred, target)
         self.log('valid_loss', loss, on_epoch=True)
         return loss
@@ -57,8 +57,8 @@ class PLWrapper(pl.LightningModule):
         if self.use_test_cache:
             with open('./data/cache/test_cache.pkl', 'rb') as f:
                 cached_batch = pickle.load(f)
-        obj_pc, part_pc, targets, part_metas = batch
-        preds, features = self.model(obj_pc, part_pc)
+        pcs, targets, part_metas = batch
+        preds, features = self.model(pcs)
         return {
             'preds': preds,
             'targets': targets,

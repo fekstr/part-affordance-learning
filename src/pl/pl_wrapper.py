@@ -6,6 +6,7 @@ import torch.nn.functional as F
 import pytorch_lightning as pl
 from PIL import Image
 from PIL.PngImagePlugin import PngImageFile
+from sklearn.metrics import roc_auc_score
 
 from src.evaluation.metrics import auroc, pca, umap
 
@@ -42,15 +43,21 @@ class PLWrapper(pl.LightningModule):
         pcs, target, _ = batch
         pred, _ = self.model(pcs)
         loss = F.cross_entropy(
-            pred, target, label_smoothing=self.hyperparams.label_smoothing)
+            pred,
+            target.float(),
+            label_smoothing=self.hyperparams.label_smoothing)
         self.log('train_loss', loss)
         return loss
 
     def validation_step(self, batch, batch_idx):
         pcs, target, _ = batch
         pred, _ = self.model(pcs)
-        loss = F.cross_entropy(pred, target)
-        self.log('valid_loss', loss, on_epoch=True)
+        loss = F.cross_entropy(pred, target.float())
+        auc = roc_auc_score(target.cpu(),
+                            pred.cpu(),
+                            average='macro',
+                            multi_class='ovr')
+        self.log('valid_auc_macro', auc, on_epoch=True)
         return loss
 
     def test_step(self, batch, batch_idx):
@@ -85,7 +92,7 @@ class PLWrapper(pl.LightningModule):
         evaluations = [
             # auroc(preds, targets),
             # pca(features, part_names),
-            umap(features, part_names),
+            # umap(features, part_names),
         ]
         for eval in evaluations:
             for name, value in eval.items():

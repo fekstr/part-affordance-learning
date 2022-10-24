@@ -8,6 +8,7 @@ from src.backbones.pointnet2_features import PointNet2Feature
 class WeakModel(nn.Module):
     def __init__(self, num_classes=16):
         super().__init__()
+        self.num_classes = num_classes
         self.backbone = PointNet2Feature(num_classes, False)
 
         self.fc1 = nn.Linear(1024, 512)

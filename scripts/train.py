@@ -11,10 +11,12 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 
 from src.config import hyperparams_dict, config
 from src.datasets.dataset import CommonDataset
+from src.models.attention import AttentionModel
 from src.pl.pl_wrapper import PLWrapper
 from src.models.weak import WeakModel
 from src.models.baseline import BaselineModel
 from src.models.baseline2 import BaselineModel2
+from src.models.baseline_object import BaselineObjectModel
 from src.utils import set_seeds
 from src.datasets.utils import get_dataloaders
 
@@ -63,7 +65,7 @@ def main(args, dataset, model, hyperparams, config):
         dataset,
         small=args.dev,
         batch_size=hyperparams.batch_size,
-        multipart=config['multipart'])
+        load_objects=config['item_type'] in ['object', 'all_part'])
 
     checkpoint_cb = ModelCheckpoint(dirpath=os.path.join(
         'checkpoints', experiment.get_key()),
@@ -93,25 +95,21 @@ if __name__ == '__main__':
 
     hyperparams = SimpleNamespace(**hyperparams_dict)
 
-    data_path = os.path.join('data', 'PartNet', 'objects_small')
-    with open(os.path.join('data', 'manual_class_labels.json')) as f:
-        labels = json.load(f)
     dataset = CommonDataset(
-        data_path,
-        tag='all_parts',
-        num_points=1024,
+        objects_path=config['data_path'],
+        tag=config['tag'],
+        num_points=config['num_points'],
         train_object_classes=config['train_object_classes'],
         test_object_classes=config['test_object_classes'],
         affordances=config['affordances'],
-        manual_labels=labels,
-        include_unlabeled_parts=True,
-        return_all_parts=config['multipart']
+        manual_labels=config['labels'],
+        item_type=config['item_type'],
         # force_new_split=True,
     )
-    model = PLWrapper(WeakModel(num_classes=dataset.num_class),
+    model = PLWrapper(AttentionModel(num_classes=dataset.num_class,
+                                     affordances=['sit']),
                       hyperparams=hyperparams)
 
-    load_dotenv()
-
     torch.cuda.empty_cache()
+    load_dotenv()
     main(args, dataset, model, hyperparams_dict, config)

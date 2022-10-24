@@ -1,5 +1,6 @@
 import comet_ml
 import os
+import json
 
 from dotenv import load_dotenv
 import torch
@@ -7,6 +8,7 @@ import pytorch_lightning as pl
 from pytorch_lightning.loggers import CometLogger
 
 from src.config import config
+from src.models.baseline_object import BaselineObjectModel
 from src.pl.pl_wrapper import PLWrapper
 from src.models.baseline import BaselineModel
 from src.models.baseline2 import BaselineModel2
@@ -40,7 +42,9 @@ def main(args, dataset, model):
 
     _, _, test_dataloader = get_dataloaders(dataset,
                                             small=args.dev,
-                                            batch_size=8)
+                                            batch_size=8,
+                                            load_objects=config['item_type']
+                                            in ['object', 'all_part'])
     trainer = pl.Trainer(
         accelerator='gpu' if torch.cuda.device_count() == 1 else None,
         logger=[comet_logger])
@@ -57,17 +61,18 @@ if __name__ == '__main__':
     parser.add_argument('--no-logging', action='store_true', default=False)
     parser.add_argument('--checkpoint')
 
-    data_path = os.path.join('data', 'PartNet', 'selected_objects')
     dataset = CommonDataset(
-        data_path,
-        'all_parts',
-        1024,
+        objects_path=config['data_path'],
+        tag=config['tag'],
+        num_points=config['num_points'],
         train_object_classes=config['train_object_classes'],
         test_object_classes=config['test_object_classes'],
         affordances=config['affordances'],
+        item_type=config['item_type'],
+        manual_labels=config['labels'],
         test=True)
 
-    model = PLWrapper(BaselineModel2(num_classes=dataset.num_class),
+    model = PLWrapper(BaselineObjectModel(num_classes=dataset.num_class),
                       dataset.index_affordance_map)
 
     args = parser.parse_args()

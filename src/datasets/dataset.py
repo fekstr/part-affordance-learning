@@ -1,3 +1,4 @@
+from typing import Literal
 import os
 import numpy as np
 import hashlib
@@ -31,7 +32,7 @@ def _get_ids(objects_path, object_classes):
             # result_path = os.path.join(objects_path, id, 'result_labeled.json')
             result_path = os.path.join(objects_path, id, 'result_merged.json')
             with open(result_path) as f:
-                obj = json.load(f)[0]
+                obj = json.load(f)
                 name_id_map[obj['name']].append(id)
         with open(name_id_map_path, 'wb') as f:
             pickle.dump(dict(name_id_map), f)
@@ -64,7 +65,7 @@ def _get_split(objects_path,
         m.update(bc)
     bc = bytes('test', 'utf-8')
     m.update(bc)
-    for object_class in sorted(train_object_classes + test_object_classes):
+    for object_class in sorted(test_object_classes):
         bc = bytes(object_class, 'utf-8')
         m.update(bc)
     split_id = m.hexdigest()
@@ -133,6 +134,15 @@ def _validate_options(object_classes, affordances):
             raise ValueError('Invalid object class:', object_class)
 
 
+def _get_max_parts(object_metas):
+    max_len = 0
+    for meta in object_metas:
+        l = len(meta['part_pc_paths'])
+        if l > max_len:
+            max_len = l
+    return max_len
+
+
 class CommonDataset(Dataset):
     def __init__(self,
                  objects_path: str,
@@ -142,8 +152,7 @@ class CommonDataset(Dataset):
                  test_object_classes,
                  affordances,
                  manual_labels=None,
-                 include_unlabeled_parts=False,
-                 return_all_parts=False,
+                 item_type=Literal['object', 'labeled_part', 'all_part'],
                  force_new_split=False,
                  test=False):
         # TODO: add shortcut for using all classes
@@ -159,14 +168,12 @@ class CommonDataset(Dataset):
         self._init_affordance_maps(self.affordances)
         self.num_class = len(affordances)
         self.tag = tag
-        self.object_metas, self.part_metas = get_metas(
-            objects_path,
-            object_ids,
-            num_points,
-            include_unlabeled_parts=include_unlabeled_parts)
+        self.object_metas, self.part_metas = get_metas(objects_path,
+                                                       object_ids, num_points)
         create_missing_pcs(self.object_metas + self.part_metas, num_points)
         self.manual_labels = manual_labels
-        self.return_all_parts = return_all_parts
+        self.item_type = item_type
+        self.max_parts = _get_max_parts(self.object_metas)
 
     def _init_affordance_maps(self, affordances):
         self.affordance_index_map = {
@@ -189,12 +196,28 @@ class CommonDataset(Dataset):
         return torch.tensor(affordance_vector)
 
     def __getitem__(self, idx):
-        if self.return_all_parts:
-            return self._get_parts(idx)
+        if self.item_type == 'all_part':
+            return self._get_all_parts(idx)
+        elif self.item_type == 'labeled_part':
+            return self._get_labeled_part(idx)
+        elif self.item_type == 'object':
+            return self._get_object(idx)
         else:
-            return self._get_part(idx)
+            raise ValueError(
+                'Item type must be one of "all_part", "labeled_part", "object"'
+            )
 
-    def _get_parts(self, idx):
+    def _get_object(self, idx):
+        meta = self.object_metas[idx]
+        object_pc = PyntCloud.from_file(meta['pc_path'])
+        object_pc = object_pc.points.to_numpy()
+        object_point_cloud = torch.from_numpy(object_pc).T
+        if self.manual_labels:
+            affordance = self._encode_affordances(
+                self.manual_labels[meta['obj_name']])
+        return object_point_cloud, affordance, {}
+
+    def _get_all_parts(self, idx):
         meta = self.object_metas[idx]
         part_pcs = []
         for path in meta['part_pc_paths']:
@@ -209,18 +232,20 @@ class CommonDataset(Dataset):
         part_point_clouds = [
             torch.from_numpy(part_pc).T for part_pc in part_pcs
         ]
-        # TODO: figure out how to return dynamic size tensors without crashing
         part_point_clouds = []
         for part_pc in part_pcs:
             pc_tensor = torch.from_numpy(part_pc).T.unsqueeze(dim=2)
             part_point_clouds.append(pc_tensor)
-        all_pc_tensor = torch.cat(part_point_clouds, dim=2)
-        return all_pc_tensor, affordance, {
+        for _ in range(self.max_parts - len(part_point_clouds)):
+            # Pad
+            z = torch.zeros(pc_tensor.shape)
+            part_point_clouds.append(z)
+        return part_point_clouds, affordance, {
             'obj_id': meta['obj_id'],
             'part_names': meta['part_names']
         }
 
-    def _get_part(self, idx):
+    def _get_labeled_part(self, idx):
         meta = self.part_metas[idx]
         object_pc = PyntCloud.from_file(meta['full_pc_path'])
         object_pc = object_pc.points.to_numpy()

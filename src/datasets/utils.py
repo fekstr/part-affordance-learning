@@ -10,12 +10,12 @@ from torch.utils.data import SubsetRandomSampler
 from torch.utils.data import DataLoader
 
 
-def get_dataloaders(dataset, small: bool, batch_size: int, multipart: bool):
-    if multipart:
+def get_dataloaders(dataset, small: bool, batch_size: int, load_objects: bool):
+    if load_objects:
         obj_ids = [
             object_meta['obj_id'] for object_meta in dataset.object_metas
         ]
-    else:
+    else:  # Load parts
         obj_ids = [part_meta['obj_id'] for part_meta in dataset.part_metas]
     train_sampler, valid_sampler, test_sampler = get_split(obj_ids,
                                                            dataset.id_split,
@@ -51,28 +51,17 @@ def get_split(
         idx_split['valid']), SubsetRandomSampler(idx_split['test'])
 
 
-def get_metas(objects_path,
-              object_ids,
-              num_points,
-              include_unlabeled_parts=False):
+def get_metas(objects_path, object_ids, num_points):
     part_metas = []
     object_metas = []
     print('Loading metas...')
     for id in tqdm(object_ids):
-        if include_unlabeled_parts:
-            result_merged_path = os.path.join(objects_path, id,
-                                              'result_merged.json')
-            with open(result_merged_path) as f:
-                obj = json.load(f)[0]
-                parts = obj['children']
-                name = obj['name']
-        else:
-            result_labeled_path = os.path.join(objects_path, id,
-                                               'result_labeled.json')
-            with open(result_labeled_path) as f:
-                obj = json.load(f)[0]
-                parts = obj['labeled_parts']
-                name = obj['name']
+        result_merged_path = os.path.join(objects_path, id,
+                                          'result_merged.json')
+        with open(result_merged_path) as f:
+            obj = json.load(f)
+            parts = obj['parts']
+            name = obj['name']
 
         pc_path = os.path.join(objects_path, id, 'point_clouds')
         full_pc_path = os.path.join(pc_path, f'full_{num_points}.ply')

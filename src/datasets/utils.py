@@ -3,6 +3,8 @@ from typing import Tuple
 import random
 import os
 import json
+import pickle
+
 from tqdm import tqdm
 from pathlib import Path
 from pyntcloud import PyntCloud
@@ -45,15 +47,23 @@ def get_split(
 
     if small:
         for split in idx_split:
-            idx_split[split] = random.sample(idx_split[split], 2)
+            idx_split[split] = random.sample(idx_split[split], 8)
 
     return SubsetRandomSampler(idx_split['train']), SubsetRandomSampler(
         idx_split['valid']), SubsetRandomSampler(idx_split['test'])
 
 
-def get_metas(objects_path, object_ids, num_points):
+def get_metas(objects_path, object_ids, num_points, use_cached=False):
     part_metas = []
     object_metas = []
+    if use_cached:
+        try:
+            with open('cache/metas.pkl', 'rb') as f:
+                metas = pickle.load(f)
+                print('Using cached metas...')
+                return metas['object'], metas['part']
+        except:
+            pass
     print('Loading metas...')
     for id in tqdm(object_ids):
         result_merged_path = os.path.join(objects_path, id,
@@ -65,6 +75,9 @@ def get_metas(objects_path, object_ids, num_points):
 
         pc_path = os.path.join(objects_path, id, 'point_clouds')
         full_pc_path = os.path.join(pc_path, f'full_{num_points}.ply')
+        if not os.path.isfile(full_pc_path):
+            print('Skipping', id)
+            continue
         obj_part_metas = []
         for part in parts:
             obj_part_metas.append({
@@ -97,6 +110,10 @@ def get_metas(objects_path, object_ids, num_points):
             'part_names': [meta['part_name'] for meta in obj_part_metas]
         })
 
+    metas = {'object': object_metas, 'part': part_metas}
+    with open('cache/metas.pkl', 'wb') as f:
+        pickle.dump(metas, f)
+
     return object_metas, part_metas
 
 
@@ -104,6 +121,7 @@ def create_missing_pcs(metas, num_points):
     missing_metas = [
         meta for meta in metas if not os.path.isfile(meta['pc_path'])
     ]
+    # missing_metas = metas
     if len(missing_metas) > 0:
         print(f'Creating {len(missing_metas)} new point clouds...')
         for meta in tqdm(missing_metas):
@@ -120,7 +138,7 @@ def _create_pc(obj_path: str, dest_pc_path: str, num_points: int):
     pc_dir_path = os.path.dirname(dest_pc_path)
     Path(pc_dir_path).mkdir(parents=True, exist_ok=True)
     header = [
-        'ply\n', 'format ascii 1.0\n', 'element vertex 1000\n',
+        'ply\n', 'format ascii 1.0\n', f'element vertex {num_points}\n',
         'property float x\n', 'property float y\n', 'property float z\n',
         'end_header\n'
     ]

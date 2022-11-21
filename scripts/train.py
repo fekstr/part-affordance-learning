@@ -2,6 +2,7 @@ import comet_ml
 from types import SimpleNamespace
 import os
 import json
+import shutil
 
 from dotenv import load_dotenv
 import torch
@@ -12,6 +13,9 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from src.config import hyperparams_dict, config
 from src.datasets.dataset import CommonDataset
 from src.models.attention import AttentionModel
+from src.models.attention_joint import JointAttentionModel, JointAttentionModelLoss
+from src.models.attention_slot import JointSlotAttentionModel, JointSlotAttentionModelLoss
+from src.models.attention_part import PartAttentionModel
 from src.pl.pl_wrapper import PLWrapper
 from src.models.weak import WeakModel
 from src.models.baseline import BaselineModel
@@ -19,6 +23,13 @@ from src.models.baseline2 import BaselineModel2
 from src.models.baseline_object import BaselineObjectModel
 from src.utils import set_seeds
 from src.datasets.utils import get_dataloaders
+
+
+def dump_config(checkpoints_path, config):
+    config_save_path = os.path.join(checkpoints_path, 'config.json')
+    os.makedirs(checkpoints_path, exist_ok=True)
+    with open(config_save_path, 'w') as f:
+        json.dump(config, f, indent=4)
 
 
 def init_experiment(tags, resume_id, disable_logging=False):
@@ -46,7 +57,8 @@ def main(args, dataset, model, hyperparams, config):
     torch.set_num_threads(1)
 
     if args.resume_id:
-        ckpt_path = os.path.join('checkpoints', args.resume_id, 'last.ckpt')
+        ckpt_path = os.path.join('data', 'checkpoints', args.resume_id,
+                                 'last.ckpt')
     else:
         ckpt_path = None
 
@@ -67,10 +79,16 @@ def main(args, dataset, model, hyperparams, config):
         batch_size=hyperparams.batch_size,
         load_objects=config['item_type'] in ['object', 'all_part'])
 
-    checkpoint_cb = ModelCheckpoint(dirpath=os.path.join(
-        'checkpoints', experiment.get_key()),
+    checkpoints_path = os.path.join('data', 'checkpoints',
+                                    experiment.get_key())
+
+    if not args.no_checkpoints and not args.resume_id and not args.dev:
+        dump_config(checkpoints_path, config)
+
+    checkpoint_cb = ModelCheckpoint(dirpath=checkpoints_path,
                                     save_top_k=3,
-                                    monitor='valid_loss',
+                                    monitor='val_acc',
+                                    mode='max',
                                     save_last=True)
 
     trainer = pl.Trainer(
@@ -78,7 +96,8 @@ def main(args, dataset, model, hyperparams, config):
         logger=[comet_logger],
         callbacks=None if args.no_checkpoints else [checkpoint_cb],
         log_every_n_steps=1 if args.dev else 10,
-        max_epochs=2 if args.dev else 50)
+        max_epochs=2 if args.dev else 50,
+    )
 
     trainer.fit(model, train_dataloader, valid_dataloader, ckpt_path=ckpt_path)
 
@@ -105,10 +124,19 @@ if __name__ == '__main__':
         manual_labels=config['labels'],
         item_type=config['item_type'],
         # force_new_split=True,
+        use_cached_metas=True,
+        num_slots=5
     )
-    model = PLWrapper(AttentionModel(num_classes=dataset.num_class,
-                                     affordances=['sit']),
-                      hyperparams=hyperparams)
+
+    model = PLWrapper(model=JointSlotAttentionModel(
+        num_classes=dataset.num_class,
+        affordances=dataset.affordances,
+        num_points=config['num_points'],
+        num_slots=5),
+                      loss=JointSlotAttentionModelLoss(),
+                      hyperparams=hyperparams,
+                      index_affordance_map=dataset.index_affordance_map,
+                      dev=args.dev)
 
     torch.cuda.empty_cache()
     load_dotenv()

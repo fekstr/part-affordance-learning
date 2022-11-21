@@ -21,3 +21,4 @@ comet_logs/
 nohup.out
 checkpoints/
 config.py
+demo_logs/

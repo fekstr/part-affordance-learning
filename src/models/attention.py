@@ -7,8 +7,73 @@ import numpy as np
 from src.backbones.pointnet2_sem_seg_msg import PointNet2SemMsg
 
 
+class AffordanceClassifier(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+        self.fc1 = nn.Linear(300, 128)
+        self.bn1 = nn.BatchNorm1d(128)
+        self.drop1 = nn.Dropout(0.4)
+        self.fc2 = nn.Linear(128, 64)
+        self.bn2 = nn.BatchNorm1d(64)
+        self.drop2 = nn.Dropout(0.5)
+        self.fc3 = nn.Linear(64, 1)
+
+    def forward(self, z):
+        assert z.shape[1:] == [300, 1]
+
+        x = self.drop1(F.relu(self.bn1(self.fc1(z))))
+        x = self.drop2(F.relu(self.bn2(self.fc2(x))))
+        x = self.fc3(x)
+        pred = torch.sigmoid(x)
+
+        assert pred.shape[1:] == [1]
+        return pred
+
+
+class Segmenter(nn.Module):
+    def __init__(self, num_points):
+        super().__init__()
+        self.num_points = num_points
+
+        num_classes = 2
+
+        self.conv1 = nn.Conv1d(128, 128, 1)
+        self.bn1 = nn.BatchNorm1d(128)
+        self.drop1 = nn.Dropout(0.5)
+        self.conv2 = nn.Conv1d(128, num_classes, 1)
+
+        # self.fc1 = nn.Linear(300 + num_points, 128)
+        # self.bn1 = nn.BatchNorm1d(128)
+        # self.drop1 = nn.Dropout(0.4)
+        # self.fc2 = nn.Linear(128, 64)
+        # self.bn2 = nn.BatchNorm1d(64)
+        # self.drop2 = nn.Dropout(0.5)
+        # self.fc3 = nn.Linear(64, num_points)
+
+    def forward(self, z, point_features):
+        assert z.shape[1:] == torch.Size([1, 300])
+        assert point_features.shape[1:] == torch.Size([self.num_points, 128])
+
+        # x = torch.cat((z, point_features), dim=1)
+        # x = self.drop1(F.relu(self.bn1(self.fc1(x))))
+        # x = self.drop2(F.relu(self.bn2(self.fc2(x))))
+        # x = self.fc3(x)
+        # mask = torch.sigmoid(x)
+
+        # assert mask.shape[1:] == [self.num_points, 1]
+        # return mask
+
+        x = point_features.permute(0, 2, 1)
+        x = self.drop1(F.relu(self.bn1(self.conv1(x))))
+        x = self.conv2(x)
+        # x = F.log_softmax(x, dim=1)
+        x = F.softmax(x, dim=1)
+        return x
+
+
 class AttentionModel(nn.Module):
-    def __init__(self, num_classes, affordances):
+    def __init__(self, num_classes, affordances, num_points):
         super().__init__()
         self.num_classes = num_classes
         embedder = spacy.load('en_core_web_lg')
@@ -27,13 +92,8 @@ class AttentionModel(nn.Module):
                                                num_heads=1,
                                                batch_first=True)
 
-        self.fc1 = nn.Linear(300, 128)
-        self.bn1 = nn.BatchNorm1d(128)
-        self.drop1 = nn.Dropout(0.4)
-        self.fc2 = nn.Linear(128, 64)
-        self.bn2 = nn.BatchNorm1d(64)
-        self.drop2 = nn.Dropout(0.5)
-        self.fc3 = nn.Linear(64, num_classes)
+        self.affordance_classifier = AffordanceClassifier()
+        self.segmenter = Segmenter(num_points)
 
     def forward(self, obj_pc):
         B = obj_pc.shape[0]
@@ -43,10 +103,23 @@ class AttentionModel(nn.Module):
         # Compute attention with respect to each affordance
         z, att_weights = self.attention(self.affordances.repeat(B, 1, 1),
                                         point_features, point_features)
-        z = z.view(B, 300)
-        # Use the attention-weighted value vector to predict the object affordances
-        x = self.drop1(F.relu(self.bn1(self.fc1(z))))
-        x = self.drop2(F.relu(self.bn2(self.fc2(x))))
-        x = self.fc3(x)
-        x = torch.sigmoid(x)
-        return x, att_weights
+
+        seg_mask = self.segmenter(z, point_features)
+
+        aff_preds = torch.zeros(
+            B,
+            self.num_classes,
+            device='cuda' if torch.cuda.device_count() == 1 else 'cpu')
+        for c in range(self.num_classes):
+            zc = z[:, c, :].view(B, 300)
+            # Use the attention-weighted value vector to predict the object affordances
+            aff_pred = self.affordance_classifier(zc)
+            aff_preds[:, c] = aff_pred[:, 0]
+
+        auxiliaries = {'att_weights': att_weights}
+        return aff_preds, seg_mask, auxiliaries
+
+
+# TODO:
+# Map z to a segmentation mask over the original point cloud
+# Compute loss of segmentation mask based on how much mass is in the same part

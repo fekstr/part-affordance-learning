@@ -1,31 +1,26 @@
 import comet_ml
 import os
 import json
+from types import SimpleNamespace
 
 from dotenv import load_dotenv
 import torch
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import CometLogger
 
-from src.models.baseline_object import BaselineObjectModel
 from src.pl.pl_wrapper import PLWrapper
-from src.models.baseline import BaselineModel
-from src.models.baseline2 import BaselineModel2
-from src.models.attention import AttentionModel
-from src.models.attention_joint import JointAttentionModel, JointAttentionModelLoss
-from src.models.attention_slot import JointSlotAttentionModel, JointSlotAttentionLoss
-from src.models.slot_segmentation import SlotSegmentationModel, SlotSegmentationLoss
-from src.models.pointnet_segmentation import PointNetSegmentationModel, PointNetSegmentationLoss
 from src.models.pointnet_joint import PointNetJointModel, PointNetJointLoss
-from src.datasets.utils import get_dataloaders
 from src.utils import set_seeds
-from src.datasets.dataset import CommonDataset
+from src.datasets.dataset import get_datasets
+from src.datasets.utils import get_dataloader, load_id_split
 
 
-def load_config(checkpoints_path):
+def load_options(checkpoints_path):
     with open(os.path.join(checkpoints_path, 'config.json'), 'r') as f:
         config = json.load(f)
-    return config
+    with open(os.path.join(checkpoints_path, 'hyperparams.json'), 'r') as f:
+        hyperparams = json.load(f)
+    return config, SimpleNamespace(**hyperparams)
 
 
 def init_experiment(resume_id, disable_logging=False):
@@ -42,29 +37,6 @@ def init_experiment(resume_id, disable_logging=False):
     return experiment, logger
 
 
-def main(args, dataset, model):
-    set_seeds(1)
-    torch.set_num_threads(1)
-
-    experiment_id = os.path.dirname(args.checkpoint).split('/')[-1]
-
-    experiment, comet_logger = init_experiment(disable_logging=args.no_logging,
-                                               resume_id=experiment_id)
-
-    train_dataloader, _, test_dataloader = get_dataloaders(
-        dataset,
-        small=args.dev,
-        batch_size=2 if args.dev else 8,
-        load_objects=config['item_type'] in ['object', 'all_part'])
-    trainer = pl.Trainer(
-        accelerator='gpu' if torch.cuda.device_count() == 1 else None,
-        logger=[comet_logger])
-    trainer.test(model,
-                 dataloaders=[train_dataloader]
-                 if args.test_on_train else [test_dataloader],
-                 ckpt_path=args.checkpoint)
-
-
 if __name__ == '__main__':
     import argparse
 
@@ -75,30 +47,52 @@ if __name__ == '__main__':
     parser.add_argument('--checkpoint')
     args = parser.parse_args()
 
-    checkpoint_dir = os.path.dirname(args.checkpoint)
-    config = load_config(checkpoint_dir)
-
-    dataset = CommonDataset(
-        objects_path=config['data_path'],
-        tag=config['tag'],
-        num_points=config['num_points'],
-        train_object_classes=config['train_object_classes'],
-        test_object_classes=config['test_object_classes'],
-        affordances=config['affordances'],
-        item_type=config['item_type'],
-        manual_labels=config['labels'],
-        test=True,
-        use_cached_metas=True,
-        num_slots=7)
-
-    model = PLWrapper(
-        model=JointSlotAttentionModel(
-            num_classes=dataset.num_class,
-            # affordances=dataset.affordances,
-            num_points=config['num_points'],
-            num_slots=7),
-        loss=JointSlotAttentionLoss(),
-        index_affordance_map=dataset.index_affordance_map)
-
+    # Prepare environment
+    set_seeds(1)
+    torch.cuda.empty_cache()
+    torch.set_num_threads(1)
     load_dotenv()
-    main(args, dataset, model)
+
+    # Load config from training
+    checkpoint_dir = os.path.dirname(args.checkpoint)
+    config, hyperparams = load_options(checkpoint_dir)
+
+    # Define model
+    model = PointNetJointModel(num_classes=len(config['affordances']),
+                               num_slots=7)
+    loss = PointNetJointLoss()
+
+    # Load data
+    id_split = load_id_split(config['data_path'],
+                             config['train_object_classes'],
+                             config['test_object_classes'],
+                             test=True)
+    train_dataset, _, test_dataset = get_datasets(config, hyperparams,
+                                                  id_split)
+    train_dataloader = get_dataloader(train_dataset,
+                                      small=args.dev,
+                                      batch_size=hyperparams.batch_size,
+                                      weighted_sampling=True)
+    test_dataloader = get_dataloader(test_dataset,
+                                     small=args.dev,
+                                     batch_size=hyperparams.batch_size)
+
+    # Create lightning module
+    pl_model = PLWrapper(
+        model=model,
+        loss=loss,
+        index_affordance_map=test_dataset.index_affordance_map)
+
+    experiment_id = os.path.dirname(args.checkpoint).split('/')[-1]
+
+    experiment, comet_logger = init_experiment(disable_logging=args.no_logging,
+                                               resume_id=experiment_id)
+
+    trainer = pl.Trainer(
+        accelerator='gpu' if torch.cuda.device_count() == 1 else None,
+        logger=[comet_logger])
+
+    trainer.test(pl_model,
+                 dataloaders=[train_dataloader]
+                 if args.test_on_train else [test_dataloader],
+                 ckpt_path=args.checkpoint)

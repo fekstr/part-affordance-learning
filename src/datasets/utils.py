@@ -10,7 +10,7 @@ from tqdm import tqdm
 from pathlib import Path
 from pyntcloud import PyntCloud
 from torch.utils.data import SubsetRandomSampler, WeightedRandomSampler
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 from sklearn.model_selection import train_test_split
 
 
@@ -18,8 +18,11 @@ def get_dataloader(dataset,
                    small: bool,
                    batch_size: int,
                    weighted_sampling=False) -> DataLoader:
+    if small:
+        dataset = Subset(dataset, list(range(16)))
     sampler = WeightedRandomSampler(
-        dataset.class_weights, len(dataset)) if weighted_sampling else None
+        dataset.class_weights,
+        len(dataset)) if weighted_sampling and not small else None
     dataloader = DataLoader(dataset, batch_size=batch_size, sampler=sampler)
     return dataloader
 

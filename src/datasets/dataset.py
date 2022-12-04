@@ -8,6 +8,31 @@ import open3d as o3d
 from src.datasets.utils import get_metas
 
 
+def get_datasets(config, hyperparams, id_split):
+    common_dataset_args = {
+        'objects_path': config['data_path'],
+        'num_points': config['num_points'],
+        'affordances': config['affordances'],
+        'object_affordance_labels': config['labels'],
+        'num_slots': hyperparams.num_slots
+    }
+
+    train_dataset = CommonDataset(
+        **common_dataset_args,
+        object_ids=id_split['train'],
+    )
+    valid_dataset = CommonDataset(
+        **common_dataset_args,
+        object_ids=id_split['valid'],
+    )
+    test_dataset = CommonDataset(
+        **common_dataset_args,
+        object_ids=id_split['test'],
+    )
+
+    return train_dataset, valid_dataset, test_dataset
+
+
 class CommonDataset(Dataset):
     def __init__(
         self,

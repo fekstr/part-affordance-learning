@@ -148,9 +148,9 @@ class PLWrapper(pl.LightningModule):
     def test_epoch_end(self, batches):
         pcs = torch.cat([batch['pcs'] for batch in batches], dim=0)
         preds = {}
-        # preds['affordance'] = torch.cat(
-        #     [batch['preds']['affordance'] for batch in batches], dim=0)
-        preds['affordance'] = torch.zeros((pcs.shape[0], 7))
+        preds['affordance'] = torch.cat(
+            [batch['preds']['affordance'] for batch in batches], dim=0)
+        # preds['affordance'] = torch.zeros((pcs.shape[0], 7))
         preds['segmentation_mask'] = torch.cat(
             [batch['preds']['segmentation_mask'] for batch in batches], dim=0)
         # preds['segmentation_mask'] = torch.cat(

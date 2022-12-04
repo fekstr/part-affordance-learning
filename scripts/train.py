@@ -10,43 +10,21 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import CometLogger
 
 from src.config import hyperparams_dict, config
-from src.datasets.dataset import CommonDataset
+from src.datasets.dataset import get_datasets
 from src.models.pointnet_joint import PointNetJointModel, PointNetJointLoss
 from src.pl.pl_wrapper import PLWrapper
 from src.utils import set_seeds
 from src.datasets.utils import get_dataloader, load_id_split
 
 
-def dump_config(checkpoints_path, config):
+def dump_config(checkpoints_path, hyperparams_dict, config):
     config_save_path = os.path.join(checkpoints_path, 'config.json')
+    hyperparams_save_path = os.path.join(checkpoints_path, 'hyperparams.json')
     os.makedirs(checkpoints_path, exist_ok=True)
     with open(config_save_path, 'w') as f:
         json.dump(config, f, indent=4)
-
-
-def get_datasets(config, id_split):
-    common_dataset_args = {
-        'objects_path': config['data_path'],
-        'num_points': config['num_points'],
-        'affordances': config['affordances'],
-        'object_affordance_labels': config['labels'],
-        'num_slots': 7
-    }
-
-    train_dataset = CommonDataset(
-        **common_dataset_args,
-        object_ids=id_split['train'],
-    )
-    valid_dataset = CommonDataset(
-        **common_dataset_args,
-        object_ids=id_split['valid'],
-    )
-    test_dataset = CommonDataset(
-        **common_dataset_args,
-        object_ids=id_split['test'],
-    )
-
-    return train_dataset, valid_dataset, test_dataset
+    with open(hyperparams_save_path, 'w') as f:
+        json.dump(hyperparams_dict, f, indent=4)
 
 
 def init_experiment(tags, resume_id, disable_logging=False):
@@ -95,7 +73,8 @@ if __name__ == '__main__':
     id_split = load_id_split(config['data_path'],
                              config['train_object_classes'],
                              config['test_object_classes'])
-    train_dataset, valid_dataset, _ = get_datasets(config, id_split)
+    train_dataset, valid_dataset, _ = get_datasets(config, hyperparams,
+                                                   id_split)
     train_dataloader = get_dataloader(
         train_dataset,
         small=args.dev,
@@ -129,7 +108,7 @@ if __name__ == '__main__':
     checkpoints_path = os.path.join('data', 'checkpoints',
                                     experiment.get_key())
     if not args.no_checkpoints and not args.resume_id and not args.dev:
-        dump_config(checkpoints_path, config)
+        dump_config(checkpoints_path, config, hyperparams_dict)
 
     # Configure trainer and checkpointing
     checkpoint_cb = ModelCheckpoint(dirpath=checkpoints_path,

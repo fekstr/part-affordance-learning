@@ -10,3 +10,4 @@ def set_seeds(seed):
     torch.manual_seed(seed)
     np.random.seed(seed)
     pl.trainer.seed_everything(seed)
+

@@ -187,13 +187,29 @@ class CommonDataset(Dataset):
         self.tag = tag
         self.object_metas, self.part_metas = get_metas(
             objects_path, object_ids, num_points, use_cached=use_cached_metas)
+        self.object_metas = [
+            meta for meta in self.object_metas
+            if meta['obj_name'] in object_classes
+        ]
         self.num_points = num_points
         # create_missing_pcs(self.object_metas + self.part_metas, num_points)
         # create_missing_pcs(self.object_metas, num_points)
         self.manual_labels = manual_labels
         self.item_type = item_type
-        self.max_parts = _get_max_parts()
+        # self.max_parts = _get_max_parts()
+        self.max_parts = 4
         self.num_slots = num_slots
+        self.class_weights = self._get_class_weights()
+
+    def _get_class_weights(self):
+        counts = defaultdict(lambda: 0)
+        for meta in self.object_metas:
+            counts[meta['obj_name']] += 1
+        weights = {name: 1 / count for name, count in counts.items()}
+        meta_weights = [
+            weights[meta['obj_name']] for meta in self.object_metas
+        ]
+        return meta_weights
 
     def _init_affordance_maps(self, affordances):
         self.affordance_index_map = {
@@ -219,12 +235,11 @@ class CommonDataset(Dataset):
 
     def _pc_to_seg_mask(self, pc):
         labels = pc.point['labels'].numpy()
-        masks = np.zeros((self.max_parts, labels.shape[0]))
-        # masks = np.ones((self.max_parts, labels.shape[0])) * float('Inf')
-        for label in range(labels.max() + 1):
-            mask = (labels == label).astype(int)
-            masks[label, :] = mask.squeeze()
-        return masks
+        return torch.tensor(labels).squeeze()
+        # t = torch.zeros((self.num_slots, 1024))
+        # for label in range(self.num_slots):
+        #     t[label, :] = torch.tensor(labels == label).int().squeeze()
+        # return t
 
     def __getitem__(self, idx):
         if self.item_type == 'all_part':

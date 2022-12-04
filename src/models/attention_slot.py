@@ -49,8 +49,7 @@ class Segmenter(nn.Module):
 
 
 class JointSlotAttentionModel(nn.Module):
-    def __init__(self, num_classes: int, affordances: list, num_points: int,
-                 num_slots: int):
+    def __init__(self, num_classes: int, num_points: int, num_slots: int):
         super().__init__()
         self.num_classes = num_classes
 
@@ -66,9 +65,6 @@ class JointSlotAttentionModel(nn.Module):
 
         # Extract features for each point in the point cloud
         point_features = self.backbone(obj_pc)
-        # Compute attention with respect to each affordance
-        # z, att_weights = self.attention(self.affordances.repeat(B, 1, 1),
-        #                                 point_features, point_features)
         slots = self.slot_attention(point_features)
 
         # z = [B, A, 300]
@@ -78,8 +74,7 @@ class JointSlotAttentionModel(nn.Module):
         aff_preds = self.affordance_classifier(slots)
 
         pred = {'affordance': aff_preds, 'segmentation_mask': seg_mask}
-        auxiliaries = {'att_weights': None}
-        return pred, auxiliaries
+        return pred
 
 
 def min_loss(loss_matrix):
@@ -100,7 +95,7 @@ def min_loss(loss_matrix):
     return cost
 
 
-class JointSlotAttentionModelLoss(nn.Module):
+class JointSlotAttentionLoss(nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -125,9 +120,10 @@ class JointSlotAttentionModelLoss(nn.Module):
         # [B, n_slots, n_parts] cost matrix
         seg_loss_matrix = F.binary_cross_entropy(p, g,
                                                  reduction='none').mean(dim=3)
-        # seg_loss_matrix = seg_loss_matrix.nan_to_num(float('Inf'))
         seg_loss = min_loss(seg_loss_matrix)
+        # seg_loss = F.binary_cross_entropy(pred_seg_mask, gt_seg_mask.float())
 
-        loss = 1 * aff_loss + 3 * seg_loss
+        # loss = 1 * aff_loss + 1 * seg_loss
+        loss = seg_loss
 
         return {'aff_loss': aff_loss, 'seg_loss': seg_loss, 'loss': loss}

@@ -2,7 +2,6 @@ import comet_ml
 from types import SimpleNamespace
 import os
 import json
-import shutil
 
 from dotenv import load_dotenv
 import torch
@@ -14,8 +13,11 @@ from src.config import hyperparams_dict, config
 from src.datasets.dataset import CommonDataset
 from src.models.attention import AttentionModel
 from src.models.attention_joint import JointAttentionModel, JointAttentionModelLoss
-from src.models.attention_slot import JointSlotAttentionModel, JointSlotAttentionModelLoss
+from src.models.attention_slot import JointSlotAttentionModel, JointSlotAttentionLoss
 from src.models.attention_part import PartAttentionModel
+from src.models.pointnet_segmentation import PointNetSegmentationModel, PointNetSegmentationLoss
+from src.models.slot_segmentation import SlotSegmentationModel, SlotSegmentationLoss
+from src.models.pointnet_joint import PointNetJointModel, PointNetJointLoss
 from src.pl.pl_wrapper import PLWrapper
 from src.models.weak import WeakModel
 from src.models.baseline import BaselineModel
@@ -87,7 +89,7 @@ def main(args, dataset, model, hyperparams, config):
 
     checkpoint_cb = ModelCheckpoint(dirpath=checkpoints_path,
                                     save_top_k=3,
-                                    monitor='val_acc',
+                                    monitor='val_loss',
                                     mode='max',
                                     save_last=True)
 
@@ -125,18 +127,18 @@ if __name__ == '__main__':
         item_type=config['item_type'],
         # force_new_split=True,
         use_cached_metas=True,
-        num_slots=5
-    )
+        num_slots=7)
 
-    model = PLWrapper(model=JointSlotAttentionModel(
-        num_classes=dataset.num_class,
-        affordances=dataset.affordances,
-        num_points=config['num_points'],
-        num_slots=5),
-                      loss=JointSlotAttentionModelLoss(),
-                      hyperparams=hyperparams,
-                      index_affordance_map=dataset.index_affordance_map,
-                      dev=args.dev)
+    model = PLWrapper(
+        model=PointNetJointModel(
+            num_classes=dataset.num_class,
+            # affordances=dataset.affordances,
+            # num_points=config['num_points'],
+            num_slots=7),
+        loss=PointNetJointLoss(),
+        hyperparams=hyperparams,
+        index_affordance_map=dataset.index_affordance_map,
+        dev=args.dev)
 
     torch.cuda.empty_cache()
     load_dotenv()

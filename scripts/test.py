@@ -13,7 +13,10 @@ from src.models.baseline import BaselineModel
 from src.models.baseline2 import BaselineModel2
 from src.models.attention import AttentionModel
 from src.models.attention_joint import JointAttentionModel, JointAttentionModelLoss
-from src.models.attention_slot import JointSlotAttentionModel, JointSlotAttentionModelLoss
+from src.models.attention_slot import JointSlotAttentionModel, JointSlotAttentionLoss
+from src.models.slot_segmentation import SlotSegmentationModel, SlotSegmentationLoss
+from src.models.pointnet_segmentation import PointNetSegmentationModel, PointNetSegmentationLoss
+from src.models.pointnet_joint import PointNetJointModel, PointNetJointLoss
 from src.datasets.utils import get_dataloaders
 from src.utils import set_seeds
 from src.datasets.dataset import CommonDataset
@@ -86,15 +89,16 @@ if __name__ == '__main__':
         manual_labels=config['labels'],
         test=True,
         use_cached_metas=True,
-        num_slots=5)
+        num_slots=7)
 
-    model = PLWrapper(model=JointSlotAttentionModel(
-        num_classes=dataset.num_class,
-        affordances=dataset.affordances,
-        num_points=config['num_points'],
-        num_slots=5),
-                      loss=JointSlotAttentionModelLoss(),
-                      index_affordance_map=dataset.index_affordance_map)
+    model = PLWrapper(
+        model=JointSlotAttentionModel(
+            num_classes=dataset.num_class,
+            # affordances=dataset.affordances,
+            num_points=config['num_points'],
+            num_slots=7),
+        loss=JointSlotAttentionLoss(),
+        index_affordance_map=dataset.index_affordance_map)
 
     load_dotenv()
     main(args, dataset, model)

@@ -8,7 +8,7 @@ from PIL import Image
 from PIL.PngImagePlugin import PngImageFile
 from sklearn.metrics import roc_auc_score
 
-from src.evaluation.evaluation import auroc, pca, umap, visualize_attention, accuracy, visualize_masks
+from src.evaluation.evaluation import auroc, pca, umap, visualize_attention, set_accuracy, visualize_masks, segmentation_accuracy
 
 
 def get_render(obj_id, part_name):
@@ -45,11 +45,25 @@ class PLWrapper(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         input, target, _ = batch
-        pred, _ = self.model(input)
+        pred = self.model(input)
         loss = self.loss(pred, target)
+
         self.log('train_loss', loss['loss'])
         self.log('train_aff_loss', loss['aff_loss'])
         self.log('train_seg_loss', loss['seg_loss'])
+
+        seg_acc = segmentation_accuracy(
+            pred['segmentation_mask'],
+            target['segmentation_mask'],
+            num_classes=target['segmentation_mask'].max() + 1)
+        self.log('train_seg_acc_micro', seg_acc['micro'])
+        self.log('train_seg_acc_macro', seg_acc['macro'])
+        self.log('train_seg_acc_worst', seg_acc['worst'])
+        self.log('train_seg_acc_best', seg_acc['best'])
+
+        set_aff_acc = set_accuracy(pred['affordance'], target['affordance'])
+        self.log('train_set_aff_acc', set_aff_acc)
+
         return loss['loss']
 
     # def on_validation_start(self):
@@ -57,9 +71,21 @@ class PLWrapper(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         pcs, target, _ = batch
-        pred, _ = self.model(pcs)
-        acc = accuracy(pred['affordance'], target['affordance'])
-        self.log('val_acc', acc)
+        pred = self.model(pcs)
+        loss = self.loss(pred, target)
+
+        seg_acc = segmentation_accuracy(
+            pred['segmentation_mask'],
+            target['segmentation_mask'],
+            num_classes=target['segmentation_mask'].max() + 1)
+        self.log('val_loss', loss['loss'])
+        self.log('val_seg_acc_micro', seg_acc['micro'])
+        self.log('val_seg_acc_macro', seg_acc['macro'])
+        self.log('val_seg_acc_worst', seg_acc['worst'])
+        self.log('val_seg_acc_best', seg_acc['best'])
+
+        set_aff_acc = set_accuracy(pred['affordance'], target['affordance'])
+        self.log('val_set_aff_acc', set_aff_acc)
         return pcs, pred, target
 
     def validation_epoch_end(self, batches):
@@ -111,22 +137,24 @@ class PLWrapper(pl.LightningModule):
             with open('./data/cache/test_cache.pkl', 'rb') as f:
                 cached_batch = pickle.load(f)
         pcs, targets, metas = batch
-        preds, auxiliaries = self.model(pcs)
+        preds = self.model(pcs)
         return {
             'pcs': pcs,
             'preds': preds,
             'targets': targets,
             'metas': metas,
-            'auxiliaries': auxiliaries
         }
 
     def test_epoch_end(self, batches):
         pcs = torch.cat([batch['pcs'] for batch in batches], dim=0)
         preds = {}
-        preds['affordance'] = torch.cat(
-            [batch['preds']['affordance'] for batch in batches], dim=0)
+        # preds['affordance'] = torch.cat(
+        #     [batch['preds']['affordance'] for batch in batches], dim=0)
+        preds['affordance'] = torch.zeros((pcs.shape[0], 7))
         preds['segmentation_mask'] = torch.cat(
             [batch['preds']['segmentation_mask'] for batch in batches], dim=0)
+        # preds['segmentation_mask'] = torch.cat(
+        #     [batch['preds'] for batch in batches], dim=0)
         targets = {}
         targets['affordance'] = torch.cat(
             [batch['targets']['affordance'] for batch in batches], dim=0)
@@ -146,7 +174,7 @@ class PLWrapper(pl.LightningModule):
         # ]
         # part_names = [id for ids in part_names_nested for id in ids]
 
-        targets['affordance'] = targets['affordance'].int()
+        # targets['affordance'] = targets['affordance'].int()
         # Remove dimensions with no positive samples
         # mask = torch.all(targets == 0, dim=0)
         # preds = preds[:, ~mask]
@@ -175,4 +203,8 @@ class PLWrapper(pl.LightningModule):
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(),
                                      lr=self.hyperparams.learning_rate)
-        return optimizer
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer,
+                                                         milestones=[1],
+                                                         gamma=0.1)
+        return {'optimizer': optimizer, 'lr_scheduler': scheduler}
+        # return optimizer

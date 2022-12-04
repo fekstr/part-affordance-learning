@@ -1,9 +1,11 @@
+from typing import Dict, Literal
 import itertools
 
 import torch
 import numpy as np
 from sklearn.decomposition import PCA
 from torchmetrics.functional import auroc as pt_auroc, precision_recall_curve
+from torchmetrics.functional.classification import multiclass_accuracy
 import matplotlib.pyplot as plt
 import umap as umap_lib
 import open3d as o3d
@@ -38,7 +40,7 @@ def visualize_masks(pc: torch.Tensor, masks: torch.Tensor, affs: torch.Tensor,
     n_slots = masks.shape[0]
     pcds = []
     colors = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1, 0], [0, 1, 1],
-                       [1, 0, 1]])
+                       [1, 0, 1], [0.5, 1, 0]])
     colors = colors[:, None, :]
     for i in range(n_slots):
         mask = masks.argmax(dim=0) == i
@@ -56,7 +58,32 @@ def visualize_masks(pc: torch.Tensor, masks: torch.Tensor, affs: torch.Tensor,
     ev.set(pcds)
 
 
-def accuracy(preds: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+def segmentation_accuracy(
+    pred: torch.Tensor, target: torch.Tensor, num_classes
+) -> Dict[Literal['micro', 'macro', 'worst', 'best'], torch.Tensor]:
+    num_classes = int(num_classes)
+    trunc_pred = pred[:, :num_classes, :]
+
+    micro = multiclass_accuracy(trunc_pred,
+                                target,
+                                num_classes=num_classes,
+                                average='micro')
+    macro = multiclass_accuracy(trunc_pred,
+                                target,
+                                num_classes=num_classes,
+                                average='macro')
+    none = multiclass_accuracy(trunc_pred,
+                               target,
+                               num_classes=num_classes,
+                               average='none')
+    none_filtered = none.index_select(0, target.unique().int())
+    worst = none_filtered.min()
+    best = none_filtered.max()
+
+    return {'micro': micro, 'macro': macro, 'worst': worst, 'best': best}
+
+
+def set_accuracy(preds: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
     """Computes the accuracy of predicted affordance sets.
 
     The prediction is defined as correct if the set of predicted affordances is

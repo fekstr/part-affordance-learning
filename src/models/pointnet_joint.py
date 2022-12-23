@@ -60,17 +60,6 @@ def min_loss(loss_matrix):
     return cost
 
 
-def divide_segmentation_mask(mask: torch.Tensor):
-    B, n_points = mask.shape
-    unique = mask.unique()
-    n_parts = len(unique)
-    divided_mask = torch.zeros((B, n_parts, n_points)).to(mask.device)
-    for c in range(n_parts):
-        divided_mask[:, c, :] = mask == c
-
-    return divided_mask
-
-
 def set_matching_loss(pred, target):
     """Computes the set matching loss between a prediction and a target
     
@@ -96,15 +85,10 @@ class PointNetJointLoss(nn.Module):
         pred_aff = pred['affordance']
         gt_aff = target['affordance']
 
-        # Fixed order segmentation loss
         seg_loss = F.nll_loss(pred_seg_mask, gt_seg_mask)
-
-        # gt_seg_mask = divide_segmentation_mask(gt_seg_mask)
-        # seg_loss = set_matching_loss(torch.exp(pred_seg_mask), gt_seg_mask)
 
         aff_loss = set_matching_loss(pred_aff, gt_aff)
 
         loss = aff_loss + 3 * seg_loss
-        # loss = seg_loss
 
         return {'seg_loss': seg_loss, 'aff_loss': aff_loss, 'loss': loss}

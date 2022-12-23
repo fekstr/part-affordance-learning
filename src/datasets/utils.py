@@ -18,7 +18,6 @@ def get_dataloader(dataset,
                    small: bool,
                    batch_size: int,
                    weighted_sampling=False) -> DataLoader:
-    # TODO: force small samples to contain all object classes
     if small:
         sub_indices = dataset.get_small_subset()
         dataset = Subset(dataset, sub_indices)

@@ -46,5 +46,4 @@ class PointNet2SemMsg(nn.Module):
         x = self.conv2(x)
         x = F.log_softmax(x, dim=1)
         x = x.permute(0, 2, 1)
-        # return x, l4_points
         return l0_points.permute(0, 2, 1)

@@ -11,7 +11,6 @@ from pytorch_lightning.loggers import CometLogger
 
 from src.config import hyperparams_dict, config
 from src.datasets.dataset import get_datasets
-from src.models.pointnet_joint import PointNetJointModel, PointNetJointLoss
 from src.models.pointnet_segmentation import PointNetSegmentationModel, PointNetSegmentationLoss
 from src.pl.pl_wrapper import PLWrapper
 from src.utils import set_seeds
@@ -67,8 +66,6 @@ if __name__ == '__main__':
     load_dotenv()
 
     # Define model
-    # model = PointNetJointModel(num_classes=len(config['affordances']),
-    #                            num_slots=7)
     model = PointNetSegmentationModel(num_slots=10)
     loss = PointNetSegmentationLoss()
 

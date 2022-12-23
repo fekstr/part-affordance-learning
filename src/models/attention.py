@@ -43,31 +43,13 @@ class Segmenter(nn.Module):
         self.drop1 = nn.Dropout(0.5)
         self.conv2 = nn.Conv1d(128, num_classes, 1)
 
-        # self.fc1 = nn.Linear(300 + num_points, 128)
-        # self.bn1 = nn.BatchNorm1d(128)
-        # self.drop1 = nn.Dropout(0.4)
-        # self.fc2 = nn.Linear(128, 64)
-        # self.bn2 = nn.BatchNorm1d(64)
-        # self.drop2 = nn.Dropout(0.5)
-        # self.fc3 = nn.Linear(64, num_points)
-
     def forward(self, z, point_features):
         assert z.shape[1:] == torch.Size([1, 300])
         assert point_features.shape[1:] == torch.Size([self.num_points, 128])
 
-        # x = torch.cat((z, point_features), dim=1)
-        # x = self.drop1(F.relu(self.bn1(self.fc1(x))))
-        # x = self.drop2(F.relu(self.bn2(self.fc2(x))))
-        # x = self.fc3(x)
-        # mask = torch.sigmoid(x)
-
-        # assert mask.shape[1:] == [self.num_points, 1]
-        # return mask
-
         x = point_features.permute(0, 2, 1)
         x = self.drop1(F.relu(self.bn1(self.conv1(x))))
         x = self.conv2(x)
-        # x = F.log_softmax(x, dim=1)
         x = F.softmax(x, dim=1)
         return x
 
@@ -118,8 +100,3 @@ class AttentionModel(nn.Module):
 
         auxiliaries = {'att_weights': att_weights}
         return aff_preds, seg_mask, auxiliaries
-
-
-# TODO:
-# Map z to a segmentation mask over the original point cloud
-# Compute loss of segmentation mask based on how much mass is in the same part

@@ -21,7 +21,6 @@ def visualize_attention(pc, att_weights):
 
     att = att_weights.cpu().numpy()
     norm_att = ((att - att.min()) / (att.max() - att.min()))
-    # color = torch.nn.functional.pad(norm_att.T, (0, 2), "constant", 1)
     color = np.repeat(1 - norm_att, 3, axis=0)
     pcd.colors = o3d.utility.Vector3dVector(color.T)
 
@@ -121,13 +120,6 @@ def segmentation_performance_per_class(
         }
 
     return results
-
-
-def set_segmentation_accuracy(
-    pred: torch.Tensor, target: torch.Tensor, num_classes
-) -> Dict[Literal['micro', 'macro', 'worst', 'best'], torch.Tensor]:
-    # TODO: implement
-    raise NotImplementedError
 
 
 def set_accuracy(preds: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
@@ -231,17 +223,6 @@ def umap(features, part_names):
     return {'UMAP plot': get_image(fig)}
 
 
-# def failures(preds, targets):
-#     """Writes the preds and targets of preds with largest errors"""
-#     errs = torch.sum(abs(preds - targets), dim=1)
-#     topk = torch.topk(errs, 5)
-#     with open('./failures.txt', 'a') as f:
-#         f.write('Failures\n\n')
-#         for i in topk.indices:
-#             f.write('Pred: ' + str(round_pred) + '\n')
-#             f.write('Target: ' + str(targets[i]) + '\n\n')
-
-
 def precision_recall(preds, targets):
     num_classes = targets.shape[1]
     for i in range(num_classes):
@@ -260,28 +241,3 @@ def precision_recall(preds, targets):
         plt.title(f'Precision-Recall Curve ({name})')
         fig = plt.gcf()
         return {f'Precision-Recall Curve ({name})': get_image(fig)}
-
-
-# def _min_max_scores(self, preds, targets, obj_ids, part_names):
-#     errs = abs(preds - targets).squeeze(1)
-#     min_indices = errs.topk(3, largest=False)[1].cpu().numpy()
-#     max_indices = errs.topk(3, 0)[1].cpu().numpy()
-#     errs = errs.cpu().numpy()
-
-#     min_imgs = [
-#         get_render(obj_ids[idx], part_names[idx]) for idx in min_indices
-#     ]
-#     max_imgs = [
-#         get_render(obj_ids[idx], part_names[idx]) for idx in max_indices
-#     ]
-
-#     for i, img in enumerate(min_imgs):
-#         self.logger.experiment.log_image(img, name='min_error_test_' + str(i))
-#     for i, img in enumerate(max_imgs):
-#         self.logger.experiment.log_image(img, name='max_error_test_' + str(i))
-
-#     min_err = round(errs[min_indices[0]], 5)
-#     max_err = round(errs[max_indices[0]], 5)
-
-#     self.log('min_err_test', min_err)
-#     self.log('max_err_test', max_err)

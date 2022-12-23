@@ -102,13 +102,5 @@ class PartAttentionModel(nn.Module):
         # Use the attention-weighted value vector to predict the part affordances
         aff_preds = self.affordance_classifier(zs)
 
-        # auxiliaries = {'att_weights': att_weights}
         auxiliaries = {}
         return aff_preds, auxiliaries
-
-
-# TODO:
-# Handle part dimensions that are zero
-# Make supervision work
-# Potential problem: model could just learn to identify parts and predict affordance based on it
-#   Potential solution: use the same attention-weighted embedding to segment part and predict its affordance

@@ -10,10 +10,11 @@ from PIL import Image
 from PIL.PngImagePlugin import PngImageFile
 from sklearn.metrics import roc_auc_score
 
-from src.evaluation.evaluation import auroc, pca, umap, visualize_attention, set_accuracy, visualize_masks, segmentation_accuracy, segmentation_performance_per_class
+from src.evaluation.evaluation import set_accuracy, visualize_masks, segmentation_accuracy, segmentation_performance_per_class
 
 
 def aggregate_batches(batches):
+    """Combines batches to align data format in *_epoch_end methods with that of *_step"""
     aggs = []
     for key in batches[0].keys():
         if type(batches[0][key]) is dict:
@@ -35,22 +36,6 @@ def aggregate_batches(batches):
     return tuple(aggs)
 
 
-def get_render(obj_id, part_name):
-    render_path = os.path.join('data', 'PartNet', 'selected_objects', obj_id,
-                               'parts_render')
-    candidate_files = [
-        f for f in os.listdir(render_path) if f.endswith('.txt')
-    ]
-    for filename in candidate_files:
-        with open(os.path.join(render_path, filename), 'r') as f:
-            tokens = f.readline()
-            if part_name in tokens.split(' '):
-                render_img_path = os.path.join(
-                    render_path, filename.replace('.txt', '.png'))
-                img = Image.open(render_img_path)
-                return img
-
-
 class PLWrapper(pl.LightningModule):
     def __init__(self,
                  model,
@@ -69,10 +54,6 @@ class PLWrapper(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         input, target, metas = batch
-
-        ## Temp thing
-        # mug_mask = np.array(metas['obj_name']) == 'mug'
-        # target['segmentation_mask'][mug_mask, :] += 6
 
         pred = self.model(input)
         loss = self.loss(pred, target)
@@ -142,29 +123,12 @@ class PLWrapper(pl.LightningModule):
     def test_epoch_end(self, batches):
         pcs, pred, target, metas = aggregate_batches(batches)
 
-        evaluations = [
-            # auroc(preds, targets),
-            # pca(features, part_names),
-            # umap(features, part_names),
-        ]
-        # mug_mask = np.array(metas['obj_name']) == 'mug'
-        # target['segmentation_mask'][mug_mask, :] += 6
-        # target_seg_mask = torch.zeros(pred['segmentation_mask'].shape).to(
-        #     pred['segmentation_mask'].device)
-        # for c in range(pred['segmentation_mask'].shape[1]):
-        #     target_seg_mask[:,
-        #                     c, :] = (target['segmentation_mask'] == c).float()
-
-        # for pc, seg_mask, name in zip(pcs, target_seg_mask, metas['obj_name']):
-        #     print(name)
-        #     visualize_masks(pc, seg_mask, None, self.index_affordance_map)
-
-        # metrics = segmentation_performance_per_class(
-        #     pred['segmentation_mask'], target['segmentation_mask'],
-        #     target['segmentation_mask'].unique(), metas['obj_name'][0])
-        # for part, values in metrics.items():
-        #     for k, v in values.items():
-        #         self.log(f'test_{part}_{k}', v)
+        metrics = segmentation_performance_per_class(
+            pred['segmentation_mask'], target['segmentation_mask'],
+            target['segmentation_mask'].unique(), metas['obj_name'][0])
+        for part, values in metrics.items():
+            for k, v in values.items():
+                self.log(f'test_{part}_{k}', v)
 
         for pc, seg_mask, name in zip(pcs, pred['segmentation_mask'],
                                       metas['obj_name']):
@@ -178,4 +142,3 @@ class PLWrapper(pl.LightningModule):
                                                          milestones=[1],
                                                          gamma=0.1)
         return {'optimizer': optimizer, 'lr_scheduler': scheduler}
-        # return optimizer

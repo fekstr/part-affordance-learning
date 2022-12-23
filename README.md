@@ -11,7 +11,3 @@
 The training data will be on the following format:
 
 `(object_label, object_point_cloud), (part_label, part_point_cloud, part_affordance)`
-
-TODO
-- [ ] Pair objects and their parts with segmented point clouds
-- [ ] Implement baseline model  

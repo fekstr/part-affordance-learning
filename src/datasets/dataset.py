@@ -79,10 +79,6 @@ class CommonDataset(Dataset):
     def _pc_to_seg_mask(self, pc):
         labels = pc.point['labels'].numpy()
         return torch.tensor(labels).squeeze()
-        # t = torch.zeros((self.num_slots, 1024))
-        # for label in range(self.num_slots):
-        #     t[label, :] = torch.tensor(labels == label).int().squeeze()
-        # return t
 
     def __len__(self):
         return len(self.object_metas)

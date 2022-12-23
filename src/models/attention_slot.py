@@ -120,10 +120,8 @@ class JointSlotAttentionLoss(nn.Module):
         # [B, n_slots, n_parts] cost matrix
         seg_loss_matrix = F.binary_cross_entropy(p, g,
                                                  reduction='none').mean(dim=3)
-        seg_loss = min_loss(seg_loss_matrix)
-        # seg_loss = F.binary_cross_entropy(pred_seg_mask, gt_seg_mask.float())
+        seg_loss = F.binary_cross_entropy(pred_seg_mask, gt_seg_mask.float())
 
-        # loss = 1 * aff_loss + 1 * seg_loss
-        loss = seg_loss
+        loss = 1 * aff_loss + 1 * seg_loss
 
         return {'aff_loss': aff_loss, 'seg_loss': seg_loss, 'loss': loss}

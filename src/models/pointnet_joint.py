@@ -68,7 +68,22 @@ def divide_segmentation_mask(mask: torch.Tensor):
     for c in range(n_parts):
         divided_mask[:, c, :] = mask == c
 
-    return divided_mask, n_parts
+    return divided_mask
+
+
+def set_matching_loss(pred, target):
+    """Computes the set matching loss between a prediction and a target
+    
+    The set matching loss is order invariant and computes the loss for
+    the permutation of prediction rows that yields the minimum loss.
+    """
+    pred_dim = pred.shape[1]
+    target_dim = target.shape[1]
+    p = pred.float().unsqueeze(dim=2).repeat(1, 1, target_dim, 1)
+    g = target.float().unsqueeze(dim=1).repeat(1, pred_dim, 1, 1)
+    loss_matrix = F.binary_cross_entropy(p, g, reduction='none')
+    loss_matrix = loss_matrix.mean(dim=3)
+    return min_loss(loss_matrix)
 
 
 class PointNetJointLoss(nn.Module):
@@ -78,30 +93,18 @@ class PointNetJointLoss(nn.Module):
     def forward(self, pred, target):
         pred_seg_mask = pred['segmentation_mask']
         gt_seg_mask = target['segmentation_mask'].long()
-        n_slots = pred_seg_mask.shape[1]
-
-        # Fixed order segmentation loss
-        # seg_loss = F.nll_loss(pred_seg_mask, gt_seg_mask)
-
-        # Set matching losses (optimal instead of fixed order of slots)
-        gt_seg_mask, n_parts = divide_segmentation_mask(gt_seg_mask)
-        p = pred_seg_mask.unsqueeze(dim=2).repeat(1, 1, n_parts, 1)
-        g = gt_seg_mask.float().unsqueeze(dim=1).repeat(1, n_slots, 1, 1)
-        seg_loss_matrix = F.binary_cross_entropy(torch.exp(p),
-                                                 g,
-                                                 reduction='none')
-        seg_loss_matrix = seg_loss_matrix.mean(dim=3)
-        seg_loss = min_loss(seg_loss_matrix)
-
         pred_aff = pred['affordance']
         gt_aff = target['affordance']
 
-        p = pred_aff.unsqueeze(dim=2).repeat(1, 1, n_slots, 1)
-        g = gt_aff.float().unsqueeze(dim=1).repeat(1, n_slots, 1, 1)
-        aff_loss_matrix = F.binary_cross_entropy(p, g,
-                                                 reduction='none').mean(dim=3)
-        aff_loss = min_loss(aff_loss_matrix)
+        # Fixed order segmentation loss
+        seg_loss = F.nll_loss(pred_seg_mask, gt_seg_mask)
+
+        # gt_seg_mask = divide_segmentation_mask(gt_seg_mask)
+        # seg_loss = set_matching_loss(torch.exp(pred_seg_mask), gt_seg_mask)
+
+        aff_loss = set_matching_loss(pred_aff, gt_aff)
 
         loss = aff_loss + 3 * seg_loss
+        # loss = seg_loss
 
         return {'seg_loss': seg_loss, 'aff_loss': aff_loss, 'loss': loss}

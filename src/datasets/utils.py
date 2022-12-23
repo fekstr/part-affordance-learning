@@ -18,8 +18,10 @@ def get_dataloader(dataset,
                    small: bool,
                    batch_size: int,
                    weighted_sampling=False) -> DataLoader:
+    # TODO: force small samples to contain all object classes
     if small:
-        dataset = Subset(dataset, list(range(16)))
+        sub_indices = dataset.get_small_subset()
+        dataset = Subset(dataset, sub_indices)
     sampler = WeightedRandomSampler(
         dataset.class_weights,
         len(dataset)) if weighted_sampling and not small else None
@@ -248,6 +250,7 @@ def load_id_split(objects_path,
     elif test:
         raise FileNotFoundError('Must test with an existing split')
     else:
-        id_split = create_id_split()
+        id_split = create_id_split(objects_path, split_path,
+                                   train_object_classes, test_object_classes)
 
     return id_split

@@ -1,11 +1,12 @@
 from typing import Dict, Literal
 import itertools
+import json
 
 import torch
 import numpy as np
 from sklearn.decomposition import PCA
 from torchmetrics.functional import auroc as pt_auroc, precision_recall_curve
-from torchmetrics.functional.classification import multiclass_accuracy
+from torchmetrics.functional.classification import multiclass_accuracy, multiclass_precision, multiclass_recall
 import matplotlib.pyplot as plt
 import umap as umap_lib
 import open3d as o3d
@@ -40,19 +41,24 @@ def visualize_masks(pc: torch.Tensor, masks: torch.Tensor, affs: torch.Tensor,
     n_slots = masks.shape[0]
     pcds = []
     colors = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1, 0], [0, 1, 1],
-                       [1, 0, 1], [0.5, 1, 0]])
+                       [1, 0, 1], [0.5, 1, 0], [1, 0.5, 0], [0.5, 1, 0.5],
+                       [1, 1, 0.5]])
     colors = colors[:, None, :]
     for i in range(n_slots):
         mask = masks.argmax(dim=0) == i
         slot_pc = pc[:, mask]
-        affordances = (affs[i] >= 0.5).nonzero().flatten()
-        affordance_labels = ','.join(
-            [index_affordance_map[int(j)] for j in affordances])
+        if affs is not None:
+            affordances = (affs[i] >= 0.5).nonzero().flatten()
+            affordance_labels = ','.join(
+                [index_affordance_map[int(j)] for j in affordances])
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(slot_pc.cpu().numpy().T)
         color = colors[i].repeat(slot_pc.shape[1], axis=0)
         pcd.colors = o3d.utility.Vector3dVector(color)
-        pcds.append((pcd, f'slot/{i}/{affordance_labels}'))
+        if affs is not None:
+            pcds.append((pcd, f'slot/{i}/{affordance_labels}'))
+        else:
+            pcds.append((pcd, f'slot/{i}'))
 
     ev = o3d.visualization.ExternalVisualizer()
     ev.set(pcds)
@@ -81,6 +87,47 @@ def segmentation_accuracy(
     best = none_filtered.max()
 
     return {'micro': micro, 'macro': macro, 'worst': worst, 'best': best}
+
+
+def segmentation_performance_per_class(
+    pred: torch.Tensor, target: torch.Tensor, classes: torch.Tensor,
+    test_object_name: str
+) -> Dict[str, Dict[Literal['accuracy', 'precision', 'recall'], torch.Tensor]]:
+    with open('data/PartNet/manual_part_labels.json') as f:
+        part_labels = json.load(f)
+        part_labels = part_labels[test_object_name]
+        part_labels = {v: k for k, v in part_labels.items()}
+
+    accuracy = multiclass_accuracy(pred,
+                                   target,
+                                   num_classes=pred.shape[1],
+                                   average='none')
+    precision = multiclass_precision(pred,
+                                     target,
+                                     num_classes=pred.shape[1],
+                                     average='none')
+    recall = multiclass_recall(pred,
+                               target,
+                               num_classes=pred.shape[1],
+                               average='none')
+
+    results = {}
+    for i in classes.cpu().numpy():
+        label = part_labels[i]
+        results[label] = {
+            'accuracy': accuracy[i],
+            'precision': precision[i],
+            'recall': recall[i],
+        }
+
+    return results
+
+
+def set_segmentation_accuracy(
+    pred: torch.Tensor, target: torch.Tensor, num_classes
+) -> Dict[Literal['micro', 'macro', 'worst', 'best'], torch.Tensor]:
+    # TODO: implement
+    raise NotImplementedError
 
 
 def set_accuracy(preds: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:

@@ -6,18 +6,19 @@ import json
 from dotenv import load_dotenv
 import torch
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning.loggers import CometLogger
 
 from src.config import hyperparams_dict, config
 from src.datasets.dataset import get_datasets
 from src.models.pointnet_joint import PointNetJointModel, PointNetJointLoss
+from src.models.pointnet_segmentation import PointNetSegmentationModel, PointNetSegmentationLoss
 from src.pl.pl_wrapper import PLWrapper
 from src.utils import set_seeds
 from src.datasets.utils import get_dataloader, load_id_split
 
 
-def dump_config(checkpoints_path, hyperparams_dict, config):
+def dump_config(checkpoints_path, config, hyperparams_dict):
     config_save_path = os.path.join(checkpoints_path, 'config.json')
     hyperparams_save_path = os.path.join(checkpoints_path, 'hyperparams.json')
     os.makedirs(checkpoints_path, exist_ok=True)
@@ -55,6 +56,7 @@ if __name__ == '__main__':
     parser.add_argument('--no-logging', action='store_true', default=False)
     parser.add_argument('--no-checkpoints', action='store_true', default=False)
     parser.add_argument('--dev', action='store_true', default=False)
+    parser.add_argument('--tags', type=str, nargs='+')
     args = parser.parse_args()
     hyperparams = SimpleNamespace(**hyperparams_dict)
 
@@ -65,9 +67,10 @@ if __name__ == '__main__':
     load_dotenv()
 
     # Define model
-    model = PointNetJointModel(num_classes=len(config['affordances']),
-                               num_slots=7)
-    loss = PointNetJointLoss()
+    # model = PointNetJointModel(num_classes=len(config['affordances']),
+    #                            num_slots=7)
+    model = PointNetSegmentationModel(num_slots=10)
+    loss = PointNetSegmentationLoss()
 
     # Load data
     id_split = load_id_split(config['data_path'],
@@ -95,9 +98,8 @@ if __name__ == '__main__':
         dev=args.dev)
 
     # Initialize Comet experiment or continue logging to an existing experiment
-    dev_tags = ['dev'] if args.dev else []
     experiment, comet_logger = init_experiment(
-        tags=config['tags'] + dev_tags,
+        tags=args.tags,
         resume_id=args.resume_id,
         disable_logging=args.no_logging,
     )
@@ -112,14 +114,16 @@ if __name__ == '__main__':
 
     # Configure trainer and checkpointing
     checkpoint_cb = ModelCheckpoint(dirpath=checkpoints_path,
-                                    save_top_k=3,
+                                    save_top_k=1,
                                     monitor='val_loss',
-                                    mode='max',
+                                    mode='min',
                                     save_last=True)
+    early_stopping_cb = EarlyStopping(monitor='val_loss', patience=3)
     trainer = pl.Trainer(
         accelerator='gpu' if torch.cuda.device_count() == 1 else None,
         logger=[comet_logger],
-        callbacks=None if args.no_checkpoints else [checkpoint_cb],
+        callbacks=[early_stopping_cb]
+        if args.no_checkpoints else [checkpoint_cb, early_stopping_cb],
         log_every_n_steps=1 if args.dev else 10,
         max_epochs=2 if args.dev else 50,
     )

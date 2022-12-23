@@ -15,7 +15,7 @@ class PointNetSegmentationModel(nn.Module):
         cls_label = torch.zeros((B, 16)).to(obj_pc.device)
         cls_label[:, 0] = torch.ones(B).to(obj_pc.device)
         seg_masks, _ = self.pointnet(obj_pc, cls_label)
-        return seg_masks.permute(0, 2, 1)
+        return {'segmentation_mask': seg_masks.permute(0, 2, 1)}
 
 
 class PointNetSegmentationLoss(nn.Module):
@@ -23,7 +23,7 @@ class PointNetSegmentationLoss(nn.Module):
         super().__init__()
 
     def forward(self, pred, target):
-        pred_seg_mask = pred
+        pred_seg_mask = pred['segmentation_mask']
         gt_seg_mask = target['segmentation_mask'].long()
 
         seg_loss = F.nll_loss(pred_seg_mask, gt_seg_mask)

@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Tuple
 from collections import defaultdict
 
 import torch
@@ -6,31 +6,6 @@ from torch.utils.data import Dataset
 import open3d as o3d
 
 from src.datasets.utils import get_metas
-
-
-def get_datasets(config, hyperparams, id_split):
-    common_dataset_args = {
-        'objects_path': config['data_path'],
-        'num_points': config['num_points'],
-        'affordances': config['affordances'],
-        'object_affordance_labels': config['labels'],
-        'num_slots': hyperparams.num_slots
-    }
-
-    train_dataset = CommonDataset(
-        **common_dataset_args,
-        object_ids=id_split['train'],
-    )
-    valid_dataset = CommonDataset(
-        **common_dataset_args,
-        object_ids=id_split['valid'],
-    )
-    test_dataset = CommonDataset(
-        **common_dataset_args,
-        object_ids=id_split['test'],
-    )
-
-    return train_dataset, valid_dataset, test_dataset
 
 
 class CommonDataset(Dataset):
@@ -54,6 +29,20 @@ class CommonDataset(Dataset):
         self.object_affordance_labels = object_affordance_labels
         self.num_slots = num_slots
         self.class_weights = self._get_class_weights()
+
+    def get_small_subset(self, size: int = 16):
+        """Returns the indices of a small subset with all classes represented"""
+        classes = set()
+        for meta in self.object_metas:
+            classes.add(meta['obj_name'])
+        samples_per_class = size // len(classes)
+        counts = defaultdict(lambda: 0)
+        idxs = []
+        for i, meta in enumerate(self.object_metas):
+            if counts[meta['obj_name']] < samples_per_class:
+                counts[meta['obj_name']] += 1
+                idxs.append(i)
+        return idxs
 
     def _get_class_weights(self):
         counts = defaultdict(lambda: 0)
@@ -117,3 +106,30 @@ class CommonDataset(Dataset):
             'obj_name': meta['obj_name'],
             'obj_id': meta['obj_id']
         }
+
+
+def get_datasets(
+        config, hyperparams,
+        id_split) -> Tuple[CommonDataset, CommonDataset, CommonDataset]:
+    common_dataset_args = {
+        'objects_path': config['data_path'],
+        'num_points': config['num_points'],
+        'affordances': config['affordances'],
+        'object_affordance_labels': config['labels'],
+        'num_slots': hyperparams.num_slots
+    }
+
+    train_dataset = CommonDataset(
+        **common_dataset_args,
+        object_ids=id_split['train'],
+    )
+    valid_dataset = CommonDataset(
+        **common_dataset_args,
+        object_ids=id_split['valid'],
+    )
+    test_dataset = CommonDataset(
+        **common_dataset_args,
+        object_ids=id_split['test'],
+    )
+
+    return train_dataset, valid_dataset, test_dataset

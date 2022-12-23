@@ -10,6 +10,7 @@ from pytorch_lightning.loggers import CometLogger
 
 from src.pl.pl_wrapper import PLWrapper
 from src.models.pointnet_joint import PointNetJointModel, PointNetJointLoss
+from src.models.pointnet_segmentation import PointNetSegmentationModel, PointNetSegmentationLoss
 from src.utils import set_seeds
 from src.datasets.dataset import get_datasets
 from src.datasets.utils import get_dataloader, load_id_split
@@ -58,9 +59,8 @@ if __name__ == '__main__':
     config, hyperparams = load_options(checkpoint_dir)
 
     # Define model
-    model = PointNetJointModel(num_classes=len(config['affordances']),
-                               num_slots=7)
-    loss = PointNetJointLoss()
+    model = PointNetSegmentationModel(num_slots=10)
+    loss = PointNetSegmentationLoss()
 
     # Load data
     id_split = load_id_split(config['data_path'],
@@ -71,8 +71,7 @@ if __name__ == '__main__':
                                                   id_split)
     train_dataloader = get_dataloader(train_dataset,
                                       small=args.dev,
-                                      batch_size=hyperparams.batch_size,
-                                      weighted_sampling=True)
+                                      batch_size=hyperparams.batch_size)
     test_dataloader = get_dataloader(test_dataset,
                                      small=args.dev,
                                      batch_size=hyperparams.batch_size)

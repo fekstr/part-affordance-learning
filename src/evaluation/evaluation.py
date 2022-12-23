@@ -31,7 +31,7 @@ def visualize_attention(pc, att_weights):
 def visualize_masks(pc: torch.Tensor, masks: torch.Tensor, affs: torch.Tensor,
                     index_affordance_map: dict) -> None:
     """Visualizes the segmentation masks and links them to affordances.
-    
+
     Args:
       pc: one point cloud
       masks: (n_slots, n_points) segmentation masks for the slots of the given point cloud

@@ -1,13 +1,11 @@
-# Weak Supervised Learning of Object Part Affordances
+# Part Affordance Learning from Geometry
 
-## Data
+## Quickstart
 
-### Ground Truth Data
-[Ground truth part affordance dataset](https://docs.google.com/spreadsheets/d/1xx0fMgmg8ux-vzHx994hkOuFUAO7-OiHfe_mcGpfvfA/edit#gid=935702000)
-
-- `affordances.txt` contains all affordances that are afforded by at least 2 distinct objects.
-- `train_objects.txt` and `test_objects.txt` contain a train-test split of objects, where every affordance in `affordances.txt` is afforded by at least one object in each of the respective sets.
-
-The training data will be on the following format:
-
-`(object_label, object_point_cloud), (part_label, part_point_cloud, part_affordance)`
+- Download [PartNet](https://partnet.cs.stanford.edu/)
+- Run [scripts/preprocessing/merge_objs_labeled.py](scripts/preprocessing/merge_objs_labeled.py) to merge object meshes into full parts
+- Run [scripts/preprocessing/create_pcs.py](scripts/preprocessing/create_pcs.py) to create point clouds with labels computed from the merged meshes
+- Edit [src/config.py](src/config.py) to set the train and test object classes and hyperparameters
+- Add a `.env` file to the root directory with the `COMET_API_KEY` variable to log to [Comet.ml](https://www.comet.com/)
+- Run [scripts/train.py](scripts/train.py) to train a model. The model to be trained and the loss function are imported and set directly in this file. Checkpoints are saved to `data/checkpoints`.
+- Run [scripts/test.py](scripts/test.py) to test a model using a specified checkpoint. The visualization script is written to send visualizations to an external device using [open3d ExternalVisualizer](http://www.open3d.org/docs/release/python_api/open3d.visualization.ExternalVisualizer.html).

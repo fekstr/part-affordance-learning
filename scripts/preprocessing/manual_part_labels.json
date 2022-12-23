@@ -1,0 +1,70 @@
+{
+  "chair": {
+    "other": 0,
+    "chair_seat": 1,
+    "chair_base": 2
+  },
+  "table": {
+    "other": 0,
+    "tabletop": 1,
+    "table_base": 2
+  },
+  "microwave": {
+    "other": 0,
+    "door": 3,
+    "frame": 4
+  },
+  "dishwasher": {
+    "other": 0,
+    "door": 3,
+    "frame": 4
+  },
+  "backpack": {
+    "other": 0,
+    "handle": 5,
+    "bag_body": 6
+  },
+  "briefcase": {
+    "other": 0,
+    "handle": 5,
+    "bag_body": 6
+  },
+  "mug": {
+    "other": 0,
+    "body": 7,
+    "handle": 5,
+    "lid": 8
+  },
+  "jug": {
+    "other": 0,
+    "body": 7,
+    "handle": 5,
+    "lid": 8
+  },
+  "normal_bottle": {
+    "other": 0,
+    "body": 7,
+    "body_handle": 5,
+    "handle": 5,
+    "lid": 8
+  },
+  "bed": {
+    "other": 0,
+    "bed_sleep_area": 1
+  },
+  "knife": {
+    "other": 0,
+    "handle_side": 5,
+    "blade_side": 9
+  },
+  "scissors": {
+    "other": 0,
+    "handle": 5,
+    "blade": 9
+  },
+  "door_set": {
+    "other": 0,
+    "door_body": 3,
+    "handle": 5
+  }
+}
